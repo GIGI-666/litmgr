@@ -21,6 +21,7 @@ import re
 from typing import Any
 
 from .registry import Registry
+from .textutil import URL_RE
 
 # 所有类型都支持的过滤操作，界面据此生成过滤条件菜单
 OP_CONTAINS = "contains"
@@ -168,9 +169,6 @@ class RatingType(FieldType):
         return value_json if value_json is not None else -1
 
 
-_URL_RE = re.compile(r"https?://[^\s，,；;）)]+")
-
-
 class UrlType(FieldType):
     """链接（可多行，多个链接）。value_json 存提取到的 URL 列表，界面可一键打开。"""
 
@@ -180,7 +178,7 @@ class UrlType(FieldType):
 
     def parse(self, raw, options=None):
         text = (raw or "").strip()
-        urls = _URL_RE.findall(text)
+        urls = URL_RE.findall(text)
         return text, (urls or None)
 
 

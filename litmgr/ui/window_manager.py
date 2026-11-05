@@ -95,6 +95,3 @@ class WindowManager:
     def close_all(self) -> None:
         for w in list(self._windows):
             w.close()
-
-    def window_count(self) -> int:
-        return len(self._windows)

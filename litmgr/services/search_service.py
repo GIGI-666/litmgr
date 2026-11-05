@@ -58,11 +58,6 @@ class SearchQuery:
         known = {k: v for k, v in d.items() if k in cls.__dataclass_fields__}
         return cls(**known)
 
-    def is_empty(self) -> bool:
-        return not (self.text.strip() or self.conditions or self.tag_ids or self.collection_id
-                    or self.read_status or self.min_rating)
-
-
 def _to_float(s: str) -> float | None:
     try:
         return float(s)

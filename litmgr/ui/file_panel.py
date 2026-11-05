@@ -11,14 +11,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtWidgets import (QFileDialog, QHBoxLayout, QInputDialog, QMessageBox, QPushButton,
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (QFileDialog, QInputDialog, QMessageBox,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from ..core.models import (KIND_ATTACHMENT, KIND_CARD, KIND_LABELS, KIND_PDF, KIND_TRANSLATION,
                            SUBTYPE_APPENDIX, SUBTYPE_MAIN, SUBTYPE_SUPPLEMENT)
 from ..importers.file_pairing import classify
 from ..services.app_context import AppContext
-from .utils import guarded, open_path
+from .utils import add_buttons, guarded, open_path
 
 
 class FilePanel(QWidget):
@@ -34,15 +35,9 @@ class FilePanel(QWidget):
         self.tree.setColumnWidth(2, 380)
         self.tree.itemDoubleClicked.connect(lambda *_: self.open_selected())
         lay.addWidget(self.tree)
-        row = QHBoxLayout()
-        for text, fn in (("打开（阅读器）", self.open_selected), ("用系统程序打开", self.open_external),
-                         ("添加文件…", self.add_files), ("设置 PDF 子类型…", self.set_subtype),
-                         ("移除", self.remove_selected)):
-            b = QPushButton(text)
-            b.clicked.connect(lambda _=False, f=fn: f())
-            row.addWidget(b)
-        row.addStretch(1)
-        lay.addLayout(row)
+        add_buttons(lay, [("打开（阅读器）", self.open_selected), ("用系统程序打开", self.open_external),
+                          ("添加文件…", self.add_files), ("设置 PDF 子类型…", self.set_subtype),
+                          ("移除", self.remove_selected)])
         self.refresh()
 
     def refresh(self) -> None:
@@ -51,7 +46,7 @@ class FilePanel(QWidget):
         files = sorted(self.ctx.papers.list_files(self.paper_id), key=lambda f: (order[f.kind], f.id))
         for f in files:
             it = QTreeWidgetItem([KIND_LABELS[f.kind], f.subtype, f.display_name, f.added_at])
-            it.setData(0, 256, f.id)
+            it.setData(0, Qt.UserRole, f.id)
             self.tree.addTopLevelItem(it)
 
     def _selected_file(self):
@@ -59,7 +54,7 @@ class FilePanel(QWidget):
         if not it:
             return None
         return next((f for f in self.ctx.papers.list_files(self.paper_id)
-                     if f.id == it.data(0, 256)), None)
+                     if f.id == it.data(0, Qt.UserRole)), None)
 
     @guarded
     def open_selected(self) -> None:

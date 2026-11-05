@@ -68,6 +68,13 @@ class PaperService:
         papers = self._fill_titles(self.papers.load_papers())
         return papers if include_archived else [p for p in papers if not p.archived]
 
+    def list_titles(self, include_archived: bool = False) -> list[Paper]:
+        """轻量列表：只读取标题相关字段（选择论文的对话框等只需要标题的场合用）。"""
+        fids = [f.id for r in (ROLE_TITLE, ROLE_TITLE_EN, ROLE_ARXIV)
+                if (f := self.fields.by_role(r))]
+        papers = self._fill_titles(self.papers.load_papers(field_ids=fids))
+        return papers if include_archived else [p for p in papers if not p.archived]
+
     def exists(self, paper_id: int) -> bool:
         return self.papers.exists(paper_id)
 
@@ -80,7 +87,7 @@ class PaperService:
         self.fs.remove_paper_dir(paper_id)
 
     def count(self) -> int:
-        return len(self.papers.all_ids())
+        return self.papers.count()
 
     # ---------- 创建 / 删除 ----------
     def create(self, raw_values: dict[int, str] | None = None, *, publish: bool = True) -> int:
@@ -178,11 +185,6 @@ class PaperService:
             self.search.index_file(paper_id, file_id, self.fs.read_text(rel_path))
         except OSError:
             pass  # 文件读不到时不影响其他功能
-
-    def reindex_file(self, file_id: int) -> None:
-        f = self.files.get(file_id)
-        if f and f.kind == KIND_TRANSLATION:
-            self._index_translation(f.paper_id, f.id, f.rel_path)
 
     def remove_file(self, file_id: int) -> None:
         f = self.files.get(file_id)

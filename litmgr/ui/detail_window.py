@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QLabel, QMainWindow, QMessageBox,
-                               QPushButton, QTabWidget, QVBoxLayout, QWidget)
+                               QTabWidget, QVBoxLayout, QWidget)
 
 from ..core.events import Events
 from ..core.models import READ_STATUS
@@ -25,7 +25,7 @@ from .file_panel import FilePanel
 from .history_panel import HistoryPanel
 from .note_panel import NotePanel
 from .organize_panel import OrganizePanel
-from .utils import EventSubscriberMixin, guarded
+from .utils import EventSubscriberMixin, guarded, make_button
 
 
 class DetailWindow(EventSubscriberMixin, QMainWindow):
@@ -65,9 +65,7 @@ class DetailWindow(EventSubscriberMixin, QMainWindow):
         bar.addStretch(1)
         for text, fn in (("阅读（PDF + 翻译）", self._read), ("与其他论文对比…", self._compare),
                          ("删除论文", self._delete)):
-            b = QPushButton(text)
-            b.clicked.connect(lambda _=False, f=fn: f())
-            bar.addWidget(b)
+            bar.addWidget(make_button(text, fn))
         lay.addLayout(bar)
 
         self.organize_panel = OrganizePanel(ctx, paper_id)

@@ -13,21 +13,16 @@
 from __future__ import annotations
 
 import csv
-import re
 from pathlib import Path
 from typing import Callable
 
 from ..core.registry import Registry
+from ..core.textutil import safe_filename
 from .compare_service import CompareTable
 from .field_service import FieldService
 from .paper_service import PaperService
 
 Exporter = Callable[[list[int], list[int] | None, Path], list[Path]]
-_BAD = re.compile(r'[\\/:*?"<>|\r\n\t]+')
-
-
-def safe_name(s: str, limit: int = 80) -> str:
-    return _BAD.sub("_", s).strip(" .")[:limit] or "未命名"
 
 
 class ExportService:
@@ -37,9 +32,6 @@ class ExportService:
         self.exporters: Registry[Exporter] = Registry("导出器")
         self.exporters.register("txt", self._export_txt)
         self.exporters.register("csv", self._export_csv)
-
-    def formats(self) -> list[str]:
-        return self.exporters.names()
 
     def export(self, fmt: str, paper_ids: list[int], target: Path,
                field_ids: list[int] | None = None) -> list[Path]:
@@ -62,10 +54,10 @@ class ExportService:
             lines = []
             for f in fields:
                 lines.append(f"{f.name}：{p.text_of(f.id)}")
-            path = target / f"{safe_name(p.title)}论文卡片.txt"
+            path = target / f"{safe_filename(p.title)}论文卡片.txt"
             n = 2
             while path.exists():
-                path = target / f"{safe_name(p.title)}论文卡片_{n}.txt"
+                path = target / f"{safe_filename(p.title)}论文卡片_{n}.txt"
                 n += 1
             path.write_text("\n".join(lines) + "\n", encoding="utf-8")
             out.append(path)

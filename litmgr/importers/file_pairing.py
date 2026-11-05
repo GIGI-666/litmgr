@@ -61,9 +61,6 @@ class PairGroup:
     def card(self) -> FileInfo | None:
         return self.cards[0] if self.cards else None
 
-    def all_files(self) -> list[FileInfo]:
-        return self.cards + self.pdfs + self.translations + self.attachments
-
 
 def _norm_key(s: str) -> str:
     return _PUNCT.sub("", s).casefold()

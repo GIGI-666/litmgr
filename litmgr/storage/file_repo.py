@@ -51,11 +51,5 @@ class FileRepo:
     def update_subtype(self, file_id: int, subtype: str) -> None:
         self.db.execute("UPDATE paper_file SET subtype=? WHERE id=?", (subtype, file_id))
 
-    def update_display_name(self, file_id: int, name: str) -> None:
-        self.db.execute("UPDATE paper_file SET display_name=? WHERE id=?", (name, file_id))
-
-    def update_content(self, file_id: int, sha256: str) -> None:
-        self.db.execute("UPDATE paper_file SET sha256=? WHERE id=?", (sha256, file_id))
-
     def delete(self, file_id: int) -> None:
         self.db.execute("DELETE FROM paper_file WHERE id=?", (file_id,))

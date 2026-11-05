@@ -20,7 +20,3 @@ class DuplicateError(LitmgrError):
 
 class ValidationError(LitmgrError):
     """用户输入不合法。"""
-
-
-class ImportErrorLitmgr(LitmgrError):
-    """导入过程中的错误（文件无法读取、格式无法解析等）。"""

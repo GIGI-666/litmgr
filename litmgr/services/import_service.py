@@ -25,7 +25,8 @@ from pathlib import Path
 from ..core.events import EventBus, Events
 from ..core.models import (KIND_ATTACHMENT, KIND_CARD, KIND_PDF, KIND_TRANSLATION,
                            ROLE_ARXIV, ROLE_TITLE, ROLE_TITLE_EN, FieldDef)
-from ..importers.card_parser import ParsedCard, norm, parse_card_text, read_text_file
+from ..core.textutil import normalize_label
+from ..importers.card_parser import ParsedCard, parse_card_text, read_text_file
 from ..importers.file_pairing import PairGroup, pair_files
 from ..storage.log_repo import LogRepo
 from ..storage.organize_repo import OrganizeRepo
@@ -146,8 +147,8 @@ class ImportService:
             dup = None
             if ax and ("arxiv", ax) in existing:
                 dup = existing[("arxiv", ax)]
-            elif ("title", norm(title_s)) in existing and norm(title_s):
-                dup = existing[("title", norm(title_s))]
+            elif ("title", normalize_label(title_s)) in existing and normalize_label(title_s):
+                dup = existing[("title", normalize_label(title_s))]
             if dup:
                 item.duplicate_of, item.action = dup, "skip"
                 warnings.append(f"与已有论文重复（#{dup}），默认跳过")
@@ -155,7 +156,7 @@ class ImportService:
 
             if parsed:
                 for e in parsed.unknown_labels():
-                    k = norm(e.label)
+                    k = normalize_label(e.label)
                     u = unknown.setdefault(k, UnknownLabel(k, e.label, e.numbered, e.guess))
                     u.numbered = u.numbered or e.numbered
                     u.guess = u.guess and e.guess
@@ -172,7 +173,7 @@ class ImportService:
                 idx.setdefault(("arxiv", a), p.id)
             for f in (title_f, title_en_f):
                 if f and (t := p.text_of(f.id)):
-                    idx.setdefault(("title", norm(t.splitlines()[0])), p.id)
+                    idx.setdefault(("title", normalize_label(t.splitlines()[0])), p.id)
         return idx
 
     # ---------- 第二步：执行导入 ----------
@@ -215,7 +216,7 @@ class ImportService:
                 resolved[u.key] = d.field_id
             elif d.action == ACT_NEW:
                 name = (d.new_name or u.label).strip()
-                existing = self.fields.name_lookup().get(norm(name))
+                existing = self.fields.name_lookup().get(normalize_label(name))
                 if existing:
                     resolved[u.key] = existing
                 else:
@@ -242,7 +243,7 @@ class ImportService:
                 pending.append(("卡片开头内容", e.content))
                 last = ("pending", len(pending) - 1)
                 continue
-            key = norm(e.label)
+            key = normalize_label(e.label)
             d = decisions.get(key) or next(
                 (u.default_decision() for u in plan.unknown if u.key == key), LabelDecision())
             if key in resolved:

@@ -4,7 +4,8 @@
 【职责】
     - 创建/删除论文，更新阅读状态、星级
     - 读写某篇论文的字段值（value_text + value_json）
-    - 批量读取多篇论文的值（列表、对比窗口使用，避免 N+1 查询）
+    - 批量读取多篇论文的值（列表、对比窗口使用，避免 N+1 查询）；
+      可只读取指定字段（如只要标题时不必把所有长文本都读出来）
 【依赖】storage.database；core.models。
 【被谁调用】services.paper_service / import_service / compare_service / search_service。
 """
@@ -16,6 +17,11 @@ from typing import Iterable
 
 from ..core.models import FieldValue, Paper
 from .database import Database, now_str
+
+
+def _to_value(value_text: str, value_json: str | None) -> FieldValue:
+    """数据库行 -> FieldValue（value_json 是 JSON 文本或 NULL）。"""
+    return FieldValue(value_text, json.loads(value_json) if value_json else None)
 
 
 class PaperRepo:
@@ -34,6 +40,10 @@ class PaperRepo:
 
     def exists(self, paper_id: int) -> bool:
         return self.db.query_one("SELECT 1 FROM paper WHERE id=?", (paper_id,)) is not None
+
+    def count(self, include_archived: bool = False) -> int:
+        sql = "SELECT COUNT(*) AS n FROM paper" + ("" if include_archived else " WHERE archived=0")
+        return self.db.query_one(sql)["n"]
 
     def touch(self, paper_id: int) -> None:
         self.db.execute("UPDATE paper SET updated_at=? WHERE id=?", (now_str(), paper_id))
@@ -74,21 +84,23 @@ class PaperRepo:
         r = self.db.query_one(
             "SELECT value_text, value_json FROM field_value WHERE paper_id=? AND field_id=?",
             (paper_id, field_id))
-        if not r:
-            return FieldValue()
-        return FieldValue(r["value_text"], json.loads(r["value_json"]) if r["value_json"] else None)
+        return _to_value(r["value_text"], r["value_json"]) if r else FieldValue()
 
     def values_of_field(self, field_id: int) -> list[tuple[int, FieldValue]]:
         """某字段在所有论文中的值（改字段类型时批量重解析用）。"""
         rows = self.db.query(
             "SELECT paper_id, value_text, value_json FROM field_value WHERE field_id=?",
             (field_id,))
-        return [(r["paper_id"], FieldValue(r["value_text"],
-                json.loads(r["value_json"]) if r["value_json"] else None)) for r in rows]
+        return [(r["paper_id"], _to_value(r["value_text"], r["value_json"])) for r in rows]
 
     # ---------- 批量读取 ----------
-    def load_papers(self, paper_ids: Iterable[int] | None = None) -> list[Paper]:
-        """读取论文及其全部字段值。paper_ids 为 None 表示全部（含已归档）。"""
+    def load_papers(self, paper_ids: Iterable[int] | None = None,
+                    field_ids: Iterable[int] | None = None) -> list[Paper]:
+        """读取论文及其字段值。
+
+        paper_ids 为 None 表示全部（含已归档）；
+        field_ids 不为 None 时只读取这些字段的值（只需要标题等少数字段时更快更省内存）。
+        """
         if paper_ids is None:
             rows = self.db.query("SELECT * FROM paper ORDER BY id")
         else:
@@ -103,17 +115,22 @@ class PaperRepo:
                   for r in rows}
         if not papers:
             return []
-        if paper_ids is None:
-            vrows = self.db.query("SELECT * FROM field_value")
-        else:
-            marks = ",".join("?" * len(papers))
-            vrows = self.db.query(
-                f"SELECT * FROM field_value WHERE paper_id IN ({marks})", list(papers))
-        for v in vrows:
+
+        sql, params = "SELECT * FROM field_value", []
+        conds = []
+        if paper_ids is not None:
+            conds.append(f"paper_id IN ({','.join('?' * len(papers))})")
+            params += list(papers)
+        if field_ids is not None:
+            fids = list(field_ids)
+            conds.append(f"field_id IN ({','.join('?' * len(fids))})" if fids else "0")
+            params += fids
+        if conds:
+            sql += " WHERE " + " AND ".join(conds)
+        for v in self.db.query(sql, params):
             p = papers.get(v["paper_id"])
             if p is not None:
-                p.values[v["field_id"]] = FieldValue(
-                    v["value_text"], json.loads(v["value_json"]) if v["value_json"] else None)
+                p.values[v["field_id"]] = _to_value(v["value_text"], v["value_json"])
         # 保持调用方给定的顺序
         if paper_ids is not None:
             return [papers[i] for i in ids if i in papers]

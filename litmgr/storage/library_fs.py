@@ -8,7 +8,7 @@
             card/ pdf/ translation/ attachments/
         backups/              数据库自动备份
     整个文件夹复制走即可完成备份/迁移（数据库里只存相对路径）。
-【依赖】仅标准库；core.models（文件种类常量）。
+【依赖】仅标准库；core.models（文件种类常量）、core.textutil。
 【被谁调用】services.app_context（创建）、import_service / paper_service（复制、删除文件）、
     ui（取绝对路径打开文件）。
 【扩展点】新增文件种类时在 KIND_DIRS 增加映射。
@@ -17,11 +17,11 @@
 from __future__ import annotations
 
 import hashlib
-import re
 import shutil
 from pathlib import Path
 
 from ..core.models import KIND_ATTACHMENT, KIND_CARD, KIND_PDF, KIND_TRANSLATION
+from ..core.textutil import decode_text, safe_filename
 
 KIND_DIRS = {
     KIND_CARD: "card",
@@ -29,7 +29,6 @@ KIND_DIRS = {
     KIND_TRANSLATION: "translation",
     KIND_ATTACHMENT: "attachments",
 }
-_BAD_CHARS = re.compile(r'[\\/:*?"<>|\r\n\t]+')
 
 
 def sha256_of(path: Path) -> str:
@@ -64,7 +63,7 @@ class LibraryFS:
         """
         src = Path(src)
         digest = sha256_of(src)
-        stem = _BAD_CHARS.sub("_", src.stem).strip(" .")[:40] or "file"
+        stem = safe_filename(src.stem, limit=40, default="file")
         target_dir = self.papers_dir / str(paper_id) / KIND_DIRS[kind]
         target_dir.mkdir(parents=True, exist_ok=True)
         target = target_dir / f"{stem}_{digest[:8]}{src.suffix.lower()}"
@@ -84,10 +83,4 @@ class LibraryFS:
 
     def read_text(self, rel_path: str) -> str:
         """读取库内文本文件（翻译 md、卡片 txt），自动处理常见编码。"""
-        data = self.abs_path(rel_path).read_bytes()
-        for enc in ("utf-8-sig", "gb18030"):
-            try:
-                return data.decode(enc)
-            except UnicodeDecodeError:
-                continue
-        return data.decode("utf-8", errors="replace")
+        return decode_text(self.abs_path(rel_path).read_bytes())

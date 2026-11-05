@@ -11,7 +11,7 @@
        URL（https://…）不会被当成标签。
     5. 第一个标签之前的内容归入“卡片开头内容”（label 为空字符串）。
     6. 同一字段在一张卡片里重复出现：内容相同则忽略，不同则换行追加（不丢内容）。
-【依赖】仅标准库。known 查找表由调用方（services.field_service.name_lookup）提供。
+【依赖】仅标准库 + core.textutil。known 查找表由调用方（services.field_service.name_lookup）提供。
 【被谁调用】services.import_service；tests。
 【扩展点】要支持新的卡片写法（如 Markdown 标题式字段），在 parse_card_text 增加一种标签识别规则。
 """
@@ -21,7 +21,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-_WS = re.compile(r"\s+")
+from ..core.textutil import decode_text, normalize_label
+
 # 编号前缀：必须带括号，避免把正文里的 “1、xxx” 误当编号
 _NUM_PREFIX = re.compile(r"^\s*[\(（]\s*\d+\s*[\)）]\s*")
 _COLON = re.compile(r"[：:]")
@@ -33,18 +34,7 @@ GUESS_MAX_VALUE = 60
 def read_text_file(path) -> str:
     """读取 txt 文件，依次尝试 utf-8(含BOM)、gb18030，保证 Windows 常见编码都能读。"""
     with open(path, "rb") as f:
-        data = f.read()
-    for enc in ("utf-8-sig", "gb18030"):
-        try:
-            return data.decode(enc)
-        except UnicodeDecodeError:
-            continue
-    return data.decode("utf-8", errors="replace")
-
-
-def norm(s: str) -> str:
-    """标签归一化（与 field_service.normalize_label 保持一致：去空白、小写）。"""
-    return _WS.sub("", s or "").casefold()
+        return decode_text(f.read())
 
 
 @dataclass
@@ -103,7 +93,7 @@ def parse_card_text(text: str, known: dict[str, int]) -> ParsedCard:
         new_entry: CardEntry | None = None
         if parts:
             label, rest, numbered, colon = parts
-            fid = known.get(norm(label))
+            fid = known.get(normalize_label(label))
             if fid is not None:
                 new_entry = CardEntry(label, "", fid, numbered)
             elif numbered:
@@ -133,7 +123,7 @@ def _merge_duplicates(entries: list[CardEntry]) -> list[CardEntry]:
     for e in entries:
         if e.field_id is not None and e.field_id in seen:
             first = seen[e.field_id]
-            if e.content and norm(e.content) != norm(first.content):
+            if e.content and normalize_label(e.content) != normalize_label(first.content):
                 first.content = (first.content + "\n" + e.content).strip()
             continue
         if e.field_id is not None:

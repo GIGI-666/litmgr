@@ -13,9 +13,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 
-from .database import Database, now_str
+from .database import Database
 
+_STAMP_FMT = "%Y-%m-%d %H:%M:%S.%f"
 
 @dataclass
 class ReadingRecord:
@@ -38,15 +40,18 @@ class ReadingRepo:
             (paper_id, t))
 
     def _next_stamp(self) -> str:
-        """生成严格递增的时间戳：不早于库中最大值（防止同一秒内排序不确定）。"""
+        """生成严格递增的时间戳（微秒精度）：不早于库中最大值，保证排序确定。"""
         row = self.db.query_one("SELECT MAX(last_opened) AS m FROM reading_history")
-        now = now_str()
-        last = row["m"] if row and row["m"] else ""
-        if now > last:
-            return now
-        # 与最后一条同秒（或时钟回拨）：在其基础上追加序号，字符串比较仍然递增
-        base, _, seq = last.partition("#")
-        return f"{base}#{int(seq or 0) + 1:04d}"
+        now = datetime.now()
+        if row and row["m"]:
+            try:
+                last = datetime.strptime(row["m"].split("#")[0], _STAMP_FMT)
+            except ValueError:
+                # 兼容旧格式（无微秒的 "YYYY-MM-DD HH:MM:SS"）
+                last = datetime.strptime(row["m"].split("#")[0][:19], "%Y-%m-%d %H:%M:%S")
+            if now <= last:  # 与最后一条同刻或时钟回拨
+                now = last + timedelta(microseconds=1)
+        return now.strftime(_STAMP_FMT)
 
     def save_state(self, paper_id: int, state_json: str) -> None:
         self.db.execute("UPDATE reading_history SET state_json=? WHERE paper_id=?",

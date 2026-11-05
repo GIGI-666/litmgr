@@ -11,11 +11,12 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
-                               QMessageBox, QPushButton, QVBoxLayout)
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (QDialog, QLabel, QListWidget, QListWidgetItem, QMessageBox,
+                               QVBoxLayout)
 
 from ..services.app_context import AppContext
-from .utils import guarded, open_path
+from .utils import add_buttons, guarded, open_path
 
 
 class BackupDialog(QDialog):
@@ -28,13 +29,8 @@ class BackupDialog(QDialog):
         lay.addWidget(QLabel("数据库备份列表（启动时会自动备份，最近的在最上面）："))
         self.list = QListWidget()
         lay.addWidget(self.list, 1)
-        row = QHBoxLayout()
-        for text, fn in (("立即备份", self.backup), ("从选中的备份恢复", self.restore),
-                         ("打开备份文件夹", lambda: open_path(ctx.fs.backups_dir))):
-            b = QPushButton(text)
-            b.clicked.connect(lambda _=False, f=fn: f())
-            row.addWidget(b)
-        lay.addLayout(row)
+        add_buttons(lay, [("立即备份", self.backup), ("从选中的备份恢复", self.restore),
+                          ("打开备份文件夹", lambda: open_path(ctx.fs.backups_dir))], stretch=False)
         self.refresh()
 
     def refresh(self) -> None:
@@ -43,7 +39,7 @@ class BackupDialog(QDialog):
             st = p.stat()
             it = QListWidgetItem(f"{datetime.fromtimestamp(st.st_mtime):%Y-%m-%d %H:%M:%S}   "
                                  f"{st.st_size / 1024:.0f} KB   {p.name}")
-            it.setData(256, str(p))
+            it.setData(Qt.UserRole, str(p))
             self.list.addItem(it)
 
     @guarded
@@ -59,6 +55,6 @@ class BackupDialog(QDialog):
         if QMessageBox.question(
                 self, "恢复备份",
                 "用选中的备份覆盖当前数据库内容？\n（恢复前会自动备份当前状态）") == QMessageBox.Yes:
-            self.ctx.backup.restore(it.data(256))
+            self.ctx.backup.restore(it.data(Qt.UserRole))
             self.refresh()
             QMessageBox.information(self, "完成", "已恢复。")

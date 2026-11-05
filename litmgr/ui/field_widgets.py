@@ -15,8 +15,6 @@
 
 from __future__ import annotations
 
-import re
-
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QLineEdit, QPlainTextEdit, QPushButton,
@@ -24,10 +22,8 @@ from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QLineEdit, QPlainTextEdit
 
 from ..core.models import FieldDef
 from ..core.registry import Registry
+from ..core.textutil import URL_RE
 from .utils import open_url
-
-_URL_RE = re.compile(r"https?://[^\s，,；;）)]+")
-
 
 class FieldEditor(QWidget):
     """字段编辑器基类。"""
@@ -157,7 +153,7 @@ class UrlEditor(TextEditor):
         self.extra.addStretch(1)
 
     def _open(self) -> None:
-        for u in _URL_RE.findall(self.text()):
+        for u in URL_RE.findall(self.text()):
             open_url(u)
 
 

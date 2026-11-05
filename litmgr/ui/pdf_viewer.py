@@ -14,6 +14,8 @@ from PySide6.QtPdfWidgets import QPdfView
 from PySide6.QtWidgets import (QHBoxLayout, QLabel, QLineEdit, QPushButton, QSpinBox,
                                QVBoxLayout, QWidget)
 
+from .utils import make_button
+
 
 class PdfViewer(QWidget):
     def __init__(self, parent=None) -> None:
@@ -41,10 +43,7 @@ class PdfViewer(QWidget):
         bar.addWidget(self.page_total)
         for text, fn, tip in (("－", self.zoom_out, "缩小"), ("＋", self.zoom_in, "放大"),
                               ("适应宽度", self.fit_width, ""), ("整页", self.fit_page, "")):
-            b = QPushButton(text)
-            b.setToolTip(tip)
-            b.clicked.connect(lambda _=False, f=fn: f())
-            bar.addWidget(b)
+            bar.addWidget(make_button(text, fn, tip))
         bar.addStretch(1)
         self.search_edit = QLineEdit()
         self.search_edit.setPlaceholderText("在 PDF 中搜索（回车）")

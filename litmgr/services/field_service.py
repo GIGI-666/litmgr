@@ -15,13 +15,12 @@
 
 from __future__ import annotations
 
-import re
-
 from ..core.errors import DuplicateError, NotFoundError, ValidationError
 from ..core.events import EventBus, Events
 from ..core.field_types import FIELD_TYPES, get_type
 from ..core.models import (ROLE_ARXIV, ROLE_DATE_FIRST, ROLE_DATE_PUB, ROLE_TITLE,
                            ROLE_TITLE_EN, ROLE_VENUE, FieldDef)
+from ..core.textutil import normalize_label
 from ..storage.field_repo import FieldRepo
 from ..storage.paper_repo import PaperRepo
 from ..storage.search_repo import SearchRepo
@@ -56,14 +55,6 @@ DEFAULT_FIELDS: list[tuple] = [
     ("局限性", "longtext", None, [], "我的思考", False, []),
     ("与我研究方向的关系和启发", "longtext", None, [], "我的思考", False, []),
 ]
-
-_WS = re.compile(r"\s+")
-
-
-def normalize_label(s: str) -> str:
-    """名称归一化：去掉所有空白并转小写，用于字段名/别名的匹配与查重。"""
-    return _WS.sub("", s or "").casefold()
-
 
 class FieldService:
     def __init__(self, repo: FieldRepo, paper_repo: PaperRepo, search_repo: SearchRepo,

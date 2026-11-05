@@ -14,14 +14,13 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
-                               QFormLayout, QHBoxLayout, QLabel, QLineEdit, QListWidget,
-                               QListWidgetItem, QMessageBox, QPlainTextEdit, QPushButton,
-                               QVBoxLayout)
+                               QFormLayout, QLabel, QLineEdit, QListWidget,
+                               QListWidgetItem, QMessageBox, QPlainTextEdit, QVBoxLayout)
 
 from ..core.field_types import FIELD_TYPES
 from ..core.models import FieldDef
 from ..services.app_context import AppContext
-from .utils import guarded
+from .utils import add_buttons, guarded
 
 
 class FieldEditDialog(QDialog):
@@ -106,14 +105,8 @@ class FieldManagerDialog(QDialog):
         self.show_archived = QCheckBox("显示已归档字段")
         self.show_archived.toggled.connect(lambda _=None: self.refresh())
         lay.addWidget(self.show_archived)
-        row = QHBoxLayout()
-        for text, fn in (("新增字段", self.add), ("编辑", self.edit), ("归档/恢复", self.toggle_archive),
-                         ("永久删除", self.delete)):
-            b = QPushButton(text)
-            b.clicked.connect(lambda _=False, f=fn: f())
-            row.addWidget(b)
-        row.addStretch(1)
-        lay.addLayout(row)
+        add_buttons(lay, [("新增字段", self.add), ("编辑", self.edit),
+                          ("归档/恢复", self.toggle_archive), ("永久删除", self.delete)])
         self.refresh()
 
     def refresh(self) -> None:

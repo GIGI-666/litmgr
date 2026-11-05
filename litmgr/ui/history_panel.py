@@ -7,11 +7,11 @@
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import (QHBoxLayout, QPushButton, QTreeWidget, QTreeWidgetItem,
-                               QVBoxLayout, QWidget)
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
 from ..services.app_context import AppContext
-from .utils import guarded
+from .utils import add_buttons, guarded
 
 
 def _short(s: str, n: int = 60) -> str:
@@ -32,12 +32,7 @@ class HistoryPanel(QWidget):
         self.tree.setColumnWidth(2, 220)
         self.tree.setColumnWidth(3, 220)
         lay.addWidget(self.tree)
-        row = QHBoxLayout()
-        b = QPushButton("撤销选中的修改（恢复旧值）")
-        b.clicked.connect(self.undo_selected)
-        row.addWidget(b)
-        row.addStretch(1)
-        lay.addLayout(row)
+        add_buttons(lay, [("撤销选中的修改（恢复旧值）", self.undo_selected)])
         self.refresh()
 
     def refresh(self) -> None:
@@ -45,7 +40,7 @@ class HistoryPanel(QWidget):
         for e in self.ctx.history.of_paper(self.paper_id):
             it = QTreeWidgetItem([e.changed_at, e.field_name, _short(e.old_value),
                                   _short(e.new_value), "已撤销" if e.undone else ""])
-            it.setData(0, 256, e.id)
+            it.setData(0, Qt.UserRole, e.id)
             it.setToolTip(2, e.old_value)
             it.setToolTip(3, e.new_value)
             self.tree.addTopLevelItem(it)
@@ -54,5 +49,5 @@ class HistoryPanel(QWidget):
     def undo_selected(self) -> None:
         it = self.tree.currentItem()
         if it:
-            self.ctx.history.undo(it.data(0, 256))
+            self.ctx.history.undo(it.data(0, Qt.UserRole))
             self.refresh()   # 撤销事件发布时记录尚未标记为“已撤销”，这里再刷新一次

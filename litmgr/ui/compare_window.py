@@ -45,7 +45,7 @@ class PaperPickerDialog(QDialog):
         lay.addWidget(self.filter)
         self.list = QListWidget()
         self.list.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        for p in ctx.papers.list_all():
+        for p in ctx.papers.list_titles():
             if p.id not in exclude:
                 it = QListWidgetItem(p.title)
                 it.setData(Qt.UserRole, p.id)
