@@ -13,6 +13,8 @@
 
 from __future__ import annotations
 
+import html
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QFormLayout, QGroupBox, QHBoxLayout, QLabel, QMenu,
                                QPushButton, QScrollArea, QToolButton, QVBoxLayout, QWidget)
@@ -105,7 +107,9 @@ class PaperFieldForm(QScrollArea):
             row = QWidget()
             h = QHBoxLayout(row)
             h.setContentsMargins(0, 0, 0, 0)
-            text = QLabel(f"<b>{p.label}</b>：{p.content[:200].replace(chr(10), ' ')}")
+            # QLabel 会把含 < > 的文字当 HTML 解析，所以必须转义
+            text = QLabel(f"<b>{html.escape(p.label)}</b>："
+                          f"{html.escape(p.content[:200].replace(chr(10), ' '))}")
             text.setWordWrap(True)
             btn = QToolButton()
             btn.setText("归入字段 ▾")

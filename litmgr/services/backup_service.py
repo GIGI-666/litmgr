@@ -72,7 +72,8 @@ class BackupService:
             src.backup(self.db.conn)
         finally:
             src.close()
-        self.db.conn.execute("PRAGMA foreign_keys = ON")
+        # 备份可能来自旧版本：补跑迁移，并重设外键/WAL 等连接参数
+        self.db.after_replace()
         self.papers.reindex_all()
         self.events.publish(Events.FIELDS_CHANGED)
         self.events.publish(Events.LIBRARY_CHANGED)

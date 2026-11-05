@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPointF, Qt, QTimer
+from PySide6.QtCore import QModelIndex, QPointF, Qt, QTimer
 from PySide6.QtPdf import QPdfDocument, QPdfSearchModel
 from PySide6.QtPdfWidgets import QPdfView
 from PySide6.QtWidgets import (QHBoxLayout, QLabel, QLineEdit, QPushButton, QSpinBox,
@@ -133,12 +133,16 @@ class PdfViewer(QWidget):
         # 搜索是异步的，稍后结果数才会更新
         self.search_model.rowsInserted.connect(self._first_hit, Qt.UniqueConnection)
 
+    def _hit_count(self) -> int:
+        # PySide6 里 QAbstractItemModel.rowCount 必须显式传入父索引，不能无参调用
+        return self.search_model.rowCount(QModelIndex())
+
     def _first_hit(self, *_a) -> None:
-        if self._hit == -1 and self.search_model.rowCount() > 0:
+        if self._hit == -1 and self._hit_count() > 0:
             self._goto_hit(+1)
 
     def _goto_hit(self, step: int) -> None:
-        n = self.search_model.rowCount()
+        n = self._hit_count()
         if n == 0:
             self.search_info.setText("无结果" if self.search_edit.text().strip() else "")
             return

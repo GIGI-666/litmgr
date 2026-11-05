@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import html
 from pathlib import Path
 
 from PySide6.QtCore import Qt
@@ -276,7 +277,7 @@ class ImportWizard(QDialog):
                      f"跳过 <b>{res.skipped}</b> 篇。</p>"]
             if res.errors:
                 lines.append("<p style='color:#c00'>以下论文导入出错：</p><ul>" +
-                             "".join(f"<li>{e}</li>" for e in res.errors) + "</ul>")
+                             "".join(f"<li>{html.escape(e)}</li>" for e in res.errors) + "</ul>")
             pend = self.ctx.imports.list_pending()
             if pend:
                 lines.append(f"<p>仍有 <b>{len(pend)}</b> 条“待归类内容”，"

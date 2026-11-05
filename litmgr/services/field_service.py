@@ -141,9 +141,10 @@ class FieldService:
         old = self.get(f.id)
         f.name = self._check_name(f.name, exclude_id=f.id)
         self._check_type(f.type)
-        self.repo.update(f)
-        if old.type != f.type:
-            self._reparse_values(f)
+        with self.repo.db.transaction():       # 字段定义与所有论文的值要么一起改，要么都不改
+            self.repo.update(f)
+            if old.type != f.type:
+                self._reparse_values(f)
         self.events.publish(Events.FIELDS_CHANGED)
         return f
 
@@ -181,11 +182,12 @@ class FieldService:
 
     def reorder(self, ordered_ids: list[int]) -> None:
         """按给定顺序重排字段。"""
-        for i, fid in enumerate(ordered_ids):
-            f = self.repo.get(fid)
-            if f and f.sort_order != i:
-                f.sort_order = i
-                self.repo.update(f)
+        with self.repo.db.transaction():
+            for i, fid in enumerate(ordered_ids):
+                f = self.repo.get(fid)
+                if f and f.sort_order != i:
+                    f.sort_order = i
+                    self.repo.update(f)
         self.events.publish(Events.FIELDS_CHANGED)
 
     # ---------- 归档 / 删除 ----------
@@ -207,8 +209,9 @@ class FieldService:
         if not f.archived:
             raise ValidationError("请先归档字段，再永久删除")
         pids = [pid for pid, _ in self.paper_repo.values_of_field(field_id)]
-        self.search_repo.remove_field_everywhere(field_id, pids)
-        self.repo.delete(field_id)
+        with self.repo.db.transaction():
+            self.search_repo.remove_field_everywhere(field_id, pids)
+            self.repo.delete(field_id)
         self.events.publish(Events.FIELDS_CHANGED)
 
     # ---------- 默认字段 ----------
@@ -216,7 +219,8 @@ class FieldService:
         """全新文献库时写入模板里的 25 个字段。"""
         if self.repo.list(include_archived=True):
             return
-        for name, typ, role, aliases, group, show, options in DEFAULT_FIELDS:
-            self.add(name, typ, options=options, aliases=aliases, role=role,
-                     group_name=group, show_in_list=show, publish=False)
+        with self.repo.db.transaction():
+            for name, typ, role, aliases, group, show, options in DEFAULT_FIELDS:
+                self.add(name, typ, options=options, aliases=aliases, role=role,
+                         group_name=group, show_in_list=show, publish=False)
         self.events.publish(Events.FIELDS_CHANGED)

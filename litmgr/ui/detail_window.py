@@ -169,6 +169,7 @@ class DetailWindow(EventSubscriberMixin, QMainWindow):
         self.organize_panel.refresh()
 
     def closeEvent(self, e) -> None:
+        self.note_panel.flush()   # 没点“保存”的笔记也不丢
         self.unsubscribe_all()
         self.closed.emit()
         super().closeEvent(e)

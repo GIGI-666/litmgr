@@ -188,12 +188,18 @@ class ImportService:
             if item.action != "import":
                 result.skipped += 1
                 continue
+            created: list[int] = []   # 记下已创建的论文 id，失败时据此清理已复制的文件
             try:
-                pid = self._import_one(item, plan, decisions, resolved, title_f, arxiv_f)
-                if collection_id:
-                    self.organize.add_to_collection(pid, collection_id)
+                # 每篇论文一个事务：中途任何一步出错，数据库里不会留下这篇的半成品
+                with self.papers.transaction():
+                    pid = self._import_one(item, plan, decisions, resolved, title_f, arxiv_f,
+                                           created)
+                    if collection_id:
+                        self.organize.add_to_collection(pid, collection_id)
                 result.created.append(pid)
             except Exception as e:  # noqa: BLE001 - 单篇失败不能拖垮整批
+                for pid in created:
+                    self.papers.discard_files_dir(pid)
                 result.errors.append(f"{item.title or item.group.title_hint}：{e}")
         self.events.publish(Events.LIBRARY_CHANGED)
         return result
@@ -219,7 +225,7 @@ class ImportService:
 
     def _import_one(self, item: ImportItem, plan: ImportPlan,
                     decisions: dict[str, LabelDecision], resolved: dict[str, int],
-                    title_f, arxiv_f) -> int:
+                    title_f, arxiv_f, created: list[int]) -> int:
         values: dict[int, str] = {}
         pending: list[tuple[str, str]] = []
         last: tuple[str, int] | None = None   # ("field", fid) 或 ("pending", 下标)
@@ -262,6 +268,7 @@ class ImportService:
             values[arxiv_f.id] = g.arxiv_hint
 
         pid = self.papers.create({k: v for k, v in values.items() if v}, publish=False)
+        created.append(pid)
         for label, content in pending:
             if content.strip():
                 self.log.add_pending(pid, label, content)

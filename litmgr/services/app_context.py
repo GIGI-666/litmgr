@@ -41,7 +41,7 @@ class AppContext:
     def __init__(self, library_path: Path | str) -> None:
         self.events = EventBus()
         self.fs = LibraryFS(library_path)
-        self.db = Database(self.fs.db_path)
+        self.db = Database(self.fs.db_path, backup_dir=self.fs.backups_dir)
 
         # 仓库（storage）
         field_repo = FieldRepo(self.db)

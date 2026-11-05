@@ -19,8 +19,8 @@ from typing import Callable
 
 from PySide6.QtCore import QEvent, QObject, Qt, QUrl
 from PySide6.QtGui import QColor, QDesktopServices, QFont, QPainter
-from PySide6.QtWidgets import (QApplication, QComboBox, QMessageBox, QStyle, QStyleOptionViewItem,
-                               QStyledItemDelegate, QWidget)
+from PySide6.QtWidgets import (QApplication, QComboBox, QHBoxLayout, QMessageBox, QPushButton,
+                               QStyle, QStyleOptionViewItem, QStyledItemDelegate, QWidget)
 
 from ..core.errors import LitmgrError
 from ..core.events import EventBus
@@ -39,6 +39,33 @@ def open_url(url: str) -> None:
 
 def show_error(parent: QWidget | None, text: str, title: str = "操作失败") -> None:
     QMessageBox.warning(parent, title, text)
+
+
+def make_button(text: str, fn: Callable[[], None], tooltip: str = "") -> QPushButton:
+    """创建按钮并连接无参回调。
+
+    直接写 clicked.connect(fn) 时，Qt 会把 checked 参数传给 fn，导致带默认参数的回调
+    收到错误的值；这里统一吞掉该参数，全工程的按钮都用它创建。
+    """
+    b = QPushButton(text)
+    if tooltip:
+        b.setToolTip(tooltip)
+    b.clicked.connect(lambda _checked=False: fn())
+    return b
+
+
+def add_buttons(layout, specs: list[tuple[str, Callable[[], None]]], *, stretch: bool = True) -> list:
+    """在 layout 里加一行按钮。specs: [(按钮文字, 回调), ...]；stretch=True 时按钮靠左排列。"""
+    row = QHBoxLayout()
+    buttons = []
+    for text, fn in specs:
+        b = make_button(text, fn)
+        row.addWidget(b)
+        buttons.append(b)
+    if stretch:
+        row.addStretch(1)
+    layout.addLayout(row)
+    return buttons
 
 
 def guarded(fn: Callable) -> Callable:

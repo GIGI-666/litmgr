@@ -50,8 +50,10 @@ class OrganizeService:
 
     def tag_papers(self, paper_ids: list[int], name: str) -> None:
         t = self.get_or_create_tag(name)
+        with self.repo.db.transaction():
+            for pid in paper_ids:
+                self.repo.attach_tag(pid, t.id)
         for pid in paper_ids:
-            self.repo.attach_tag(pid, t.id)
             self.events.publish(Events.PAPER_CHANGED, paper_id=pid)
         self.events.publish(Events.ORGANIZE_CHANGED)
 
@@ -95,11 +97,14 @@ class OrganizeService:
         self.repo.delete_collection(cid)
         self.events.publish(Events.ORGANIZE_CHANGED)
 
-    def add_to_collection(self, paper_ids: list[int], cid: int) -> None:
-        for pid in paper_ids:
-            self.repo.add_to_collection(pid, cid)
-            self.events.publish(Events.PAPER_CHANGED, paper_id=pid)
-        self.events.publish(Events.ORGANIZE_CHANGED)
+    def add_to_collection(self, paper_ids: list[int], cid: int, *, publish: bool = True) -> None:
+        with self.repo.db.transaction():
+            for pid in paper_ids:
+                self.repo.add_to_collection(pid, cid)
+        if publish:
+            for pid in paper_ids:
+                self.events.publish(Events.PAPER_CHANGED, paper_id=pid)
+            self.events.publish(Events.ORGANIZE_CHANGED)
 
     def remove_from_collection(self, paper_id: int, cid: int) -> None:
         self.repo.remove_from_collection(paper_id, cid)

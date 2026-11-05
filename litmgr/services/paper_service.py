@@ -71,6 +71,14 @@ class PaperService:
     def exists(self, paper_id: int) -> bool:
         return self.papers.exists(paper_id)
 
+    def transaction(self):
+        """事务上下文：with 块内的多步修改要么全部成功，要么全部撤销（可嵌套）。"""
+        return self.papers.db.transaction()
+
+    def discard_files_dir(self, paper_id: int) -> None:
+        """删除某论文在文献库里的文件夹（导入失败回滚后清理已复制的文件用）。"""
+        self.fs.remove_paper_dir(paper_id)
+
     def count(self) -> int:
         return len(self.papers.all_ids())
 
@@ -87,14 +95,15 @@ class PaperService:
 
     def delete(self, paper_id: int) -> None:
         """永久删除论文及其库内文件、索引。"""
-        for f in self.files.list_for_paper(paper_id):
-            self.search.remove_file(f.id)
-        for v in self.papers.load_papers([paper_id]):
-            for fid in v.values:
-                self.search.remove_field(paper_id, fid)
-        self.search.index_notes(paper_id, "")
-        self.papers.delete(paper_id)
-        self.fs.remove_paper_dir(paper_id)
+        with self.papers.db.transaction():     # 数据库部分要么全删，要么全不删
+            for f in self.files.list_for_paper(paper_id):
+                self.search.remove_file(f.id)
+            for v in self.papers.load_papers([paper_id]):
+                for fid in v.values:
+                    self.search.remove_field(paper_id, fid)
+            self.search.index_notes(paper_id, "")
+            self.papers.delete(paper_id)
+        self.fs.remove_paper_dir(paper_id)     # 数据库提交成功后再删文件
         self.events.publish(Events.PAPER_DELETED, paper_id=paper_id)
 
     def set_archived(self, paper_id: int, archived: bool) -> None:
@@ -102,15 +111,23 @@ class PaperService:
         self.events.publish(Events.PAPER_CHANGED, paper_id=paper_id)
 
     # ---------- 字段值 ----------
-    def _write_value(self, paper_id: int, field_id: int, raw: str) -> FieldValue:
+    def _parse(self, field_id: int, raw: str) -> FieldValue:
+        """按字段类型把原始输入规范化为字段值。"""
         f = self.fields.get(field_id)
         text, js = get_type(f.type).parse(raw, f.options)
-        val = FieldValue(text, js)
-        if text:
+        return FieldValue(text, js)
+
+    def _store_value(self, paper_id: int, field_id: int, val: FieldValue) -> None:
+        """写入（或清空）字段值，并同步全文索引。"""
+        if val.text:
             self.papers.set_value(paper_id, field_id, val)
         else:
             self.papers.delete_value(paper_id, field_id)
-        self.search.index_field(paper_id, field_id, text)
+        self.search.index_field(paper_id, field_id, val.text)
+
+    def _write_value(self, paper_id: int, field_id: int, raw: str) -> FieldValue:
+        val = self._parse(field_id, raw)
+        self._store_value(paper_id, field_id, val)
         return val
 
     def set_field(self, paper_id: int, field_id: int, raw: str, *, log: bool = True) -> FieldValue:
@@ -119,11 +136,11 @@ class PaperService:
             raise NotFoundError(f"论文不存在: {paper_id}")
         f = self.fields.get(field_id)
         old = self.papers.get_value(paper_id, field_id)
-        new_text, _ = get_type(f.type).parse(raw, f.options)
-        if new_text == old.text:
+        val = self._parse(field_id, raw)          # 只解析一次
+        if val.text == old.text:
             return old
         with self.papers.db.transaction():
-            val = self._write_value(paper_id, field_id, raw)
+            self._store_value(paper_id, field_id, val)
             self.papers.touch(paper_id)
             if log:
                 self.log.add_change(paper_id, field_id, f.name, old.text, val.text)
@@ -193,10 +210,11 @@ class PaperService:
     # ---------- 全库重建索引 ----------
     def reindex_all(self) -> None:
         """重建全文索引（恢复备份、手动修复时用）。"""
-        self.search.clear()
-        for p in self.papers.load_papers():
-            for fid, val in p.values.items():
-                self.search.index_field(p.id, fid, val.text)
-            self.search.index_notes(p.id, self.notes.all_text(p.id))
-            for f in self.files.list_for_paper(p.id, KIND_TRANSLATION):
-                self._index_translation(p.id, f.id, f.rel_path)
+        with self.papers.db.transaction():     # 整体一个事务：几千篇时从几十秒降到几秒
+            self.search.clear()
+            for p in self.papers.load_papers():
+                for fid, val in p.values.items():
+                    self.search.index_field(p.id, fid, val.text)
+                self.search.index_notes(p.id, self.notes.all_text(p.id))
+                for f in self.files.list_for_paper(p.id, KIND_TRANSLATION):
+                    self._index_translation(p.id, f.id, f.rel_path)
