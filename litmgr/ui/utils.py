@@ -73,13 +73,15 @@ def guarded(fn: Callable) -> Callable:
 
     @functools.wraps(fn)
     def wrapper(self, *args, **kwargs):
+        # 弹窗的父窗口：窗口方法用自己；非窗口类（如 PaperActions）用它的 widget 属性
+        parent = self if isinstance(self, QWidget) else getattr(self, "widget", None)
         try:
             return fn(self, *args, **kwargs)
         except LitmgrError as e:
-            show_error(self if isinstance(self, QWidget) else None, str(e))
+            show_error(parent, str(e))
         except Exception as e:  # noqa: BLE001
             log.error("未处理的错误\n%s", traceback.format_exc())
-            show_error(self if isinstance(self, QWidget) else None, f"发生意外错误：{e}")
+            show_error(parent, f"发生意外错误：{e}")
         return None
 
     return wrapper

@@ -21,7 +21,8 @@ from litmgr.services.import_service import ACT_NEW, LabelDecision  # noqa: E402
 from litmgr.ui.utils import apply_app_style  # noqa: E402
 from litmgr.ui.window_manager import WindowManager  # noqa: E402
 
-REAL = Path(r"D:\2file\研究生2026.9.7\零散论文")
+# 示例数据文件夹（含“论文卡片”“零散论文翻译”子文件夹和若干 PDF）；可用环境变量 LITMGR_SAMPLES 指定
+REAL = Path(os.environ.get("LITMGR_SAMPLES", r"D:\2file\研究生2026.9.7\零散论文"))
 SHOTS = Path(__file__).parent / "_shots"
 
 
@@ -44,6 +45,8 @@ def shot(win, name):
 
 
 def main():
+    if not REAL.exists():
+        sys.exit(f"找不到示例数据文件夹：{REAL}\n请设置环境变量 LITMGR_SAMPLES 指向它。")
     tmp = Path(tempfile.mkdtemp(prefix="litmgr_ui_"))
     app = QApplication([])
     apply_app_style(app)

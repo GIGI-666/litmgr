@@ -36,6 +36,7 @@ class AppConfig:
     recent_libraries: list[str] = field(default_factory=list)
     auto_backup: bool = True                     # 启动时自动备份
     backup_keep: int = 10                        # 最多保留几份自动备份
+    ui_state: dict = field(default_factory=dict)  # 界面状态（窗口位置/分栏等），按窗口名分键存放
 
     @classmethod
     def load(cls) -> "AppConfig":

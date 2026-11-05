@@ -28,6 +28,7 @@ class Events:
     PAPER_CHANGED = "paper_changed"      # paper_id（字段值/状态/标签等任何变化）
     PAPER_DELETED = "paper_deleted"      # paper_id
     FIELDS_CHANGED = "fields_changed"    # 字段定义增删改（列表、详情需重建表单）
+    LIST_COLUMNS_CHANGED = "list_columns_changed"  # 论文列表的显示列变化（只需刷新列表）
     FILES_CHANGED = "files_changed"      # paper_id（论文文件增删）
     ORGANIZE_CHANGED = "organize_changed"  # 标签/分组/保存的检索变化
     NOTES_CHANGED = "notes_changed"      # paper_id

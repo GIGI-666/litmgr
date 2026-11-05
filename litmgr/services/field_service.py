@@ -139,6 +139,19 @@ class FieldService:
         self.events.publish(Events.FIELDS_CHANGED)
         return f
 
+    def set_show_in_list(self, field_id: int, on: bool) -> None:
+        """切换某字段是否作为论文列表的一列显示。
+
+        只发布 LIST_COLUMNS_CHANGED（只有列表需要刷新），不发布 FIELDS_CHANGED，
+        以免已打开的详情/对比窗口白白重建表单、丢掉未保存的输入。
+        """
+        f = self.get(field_id)
+        if f.show_in_list == on:
+            return
+        f.show_in_list = on
+        self.repo.update(f)
+        self.events.publish(Events.LIST_COLUMNS_CHANGED)
+
     def _reparse_values(self, f: FieldDef) -> None:
         """字段类型变化后，用新类型重新解析所有论文的该字段值。value_text 保证不丢。"""
         ftype = get_type(f.type)
