@@ -1,0 +1,17 @@
+[project]
+name = "litmgr"
+version = "0.1.0"
+description = "个人文献管理系统（本地单机、离线）"
+requires-python = ">=3.10"
+dependencies = [
+    # 6.12 在本机(Windows + miniforge)上 DLL 加载失败，6.8.3 已验证可用，故限定版本范围
+    "PySide6>=6.6,<6.10",
+    "markdown-it-py>=3.0",
+    "mdit-py-plugins>=0.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
