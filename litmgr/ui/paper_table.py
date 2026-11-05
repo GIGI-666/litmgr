@@ -21,6 +21,10 @@ from ..core.models import READ_STATUS, ROLE_TITLE, Paper
 from ..services.app_context import AppContext
 
 STATUS_COLORS = {"unread": "#888888", "reading": "#d9822b", "read": "#2e8b57", "deep": "#1f6fd1"}
+# 预先创建好颜色对象：data() 每次重绘都会被大量调用，不必每次新建
+_STATUS_BRUSHES = {k: QColor(v) for k, v in STATUS_COLORS.items()}
+_BLACK = QColor("#000")
+_RATING_COLOR = QColor("#e0a800")
 
 
 class PaperTableModel(QAbstractTableModel):
@@ -82,14 +86,13 @@ class PaperTableModel(QAbstractTableModel):
             return None
         p, key = self.papers[index.row()], self.columns[index.column()][0]
         if role == Qt.DisplayRole:
-            text = self._text(p, key)
-            return text.replace("\n", " ")[:200]
+            return self._text(p, key)[:200].replace("\n", " ")    # 先截断再替换：长文本不必整段处理
         if role == Qt.ToolTipRole:
             return self._text(p, key)[:1500] or None
         if role == Qt.ForegroundRole and key == "status":
-            return QColor(STATUS_COLORS.get(p.read_status, "#000"))
+            return _STATUS_BRUSHES.get(p.read_status, _BLACK)
         if role == Qt.ForegroundRole and key == "rating":
-            return QColor("#e0a800")
+            return _RATING_COLOR
         return None
 
 
@@ -132,10 +135,14 @@ class PaperTable(QTableView):
         self.model_.set_papers(papers)
         if keep:
             sm = self.selectionModel()
-            for row, p in enumerate(papers):
-                if p.id in keep:
-                    sm.select(self.model_.index(row, 0),
-                              sm.SelectionFlag.Select | sm.SelectionFlag.Rows)
+            sm.blockSignals(True)     # 逐行恢复选中时不要每行都通知一次，最后统一通知
+            try:
+                for row, p in enumerate(papers):
+                    if p.id in keep:
+                        sm.select(self.model_.index(row, 0),
+                                  sm.SelectionFlag.Select | sm.SelectionFlag.Rows)
+            finally:
+                sm.blockSignals(False)
         self._emit_selection()   # 模型重置不会触发 selectionChanged，这里手动通知
 
     def reload_columns(self) -> None:

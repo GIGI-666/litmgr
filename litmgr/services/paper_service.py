@@ -14,11 +14,13 @@
 
 from __future__ import annotations
 
+from typing import Iterable
+
 from ..core.errors import NotFoundError, ValidationError
 from ..core.events import EventBus, Events
 from ..core.field_types import get_type
-from ..core.models import (READ_STATUS, ROLE_ARXIV, ROLE_TITLE, ROLE_TITLE_EN, FieldValue,
-                           Paper)
+from ..core.models import (READ_STATUS, ROLE_ARXIV, ROLE_TITLE, ROLE_TITLE_EN, FieldDef,
+                           FieldValue, Paper)
 from ..storage.log_repo import LogRepo
 from ..storage.note_repo import NoteRepo
 from ..storage.paper_repo import PaperRepo
@@ -40,12 +42,19 @@ class PaperService:
         self.events = events
 
     # ---------- 读取 ----------
-    def _fill_titles(self, papers: list[Paper]) -> list[Paper]:
-        ids = [self.fields.by_role(r) for r in (ROLE_TITLE, ROLE_TITLE_EN, ROLE_ARXIV)]
+    def _title_fields(self) -> list[FieldDef]:
+        """用来生成显示标题的字段，按优先级：中文标题 / 英文标题 / arXiv 编号（只查一次字段定义）。"""
+        by_role = {f.role: f for f in self.fields.list() if f.role}
+        return [by_role[r] for r in (ROLE_TITLE, ROLE_TITLE_EN, ROLE_ARXIV) if r in by_role]
+
+    def _fill_titles(self, papers: list[Paper], title_fields: list[FieldDef] | None = None
+                     ) -> list[Paper]:
+        if title_fields is None:
+            title_fields = self._title_fields()
         for p in papers:
             title = ""
-            for f in ids:
-                if f and (t := p.text_of(f.id).strip()):
+            for f in title_fields:
+                if (t := p.text_of(f.id).strip()):
                     title = t.splitlines()[0]
                     break
             p.title = title or f"（未命名论文 #{p.id}）"
@@ -60,16 +69,25 @@ class PaperService:
     def get_many(self, paper_ids: list[int]) -> list[Paper]:
         return self._fill_titles(self.papers.load_papers(paper_ids))
 
-    def list_all(self, include_archived: bool = False) -> list[Paper]:
-        papers = self._fill_titles(self.papers.load_papers())
+    def titles_of(self, paper_ids: list[int]) -> dict[int, str]:
+        """一次查询取多篇论文的显示标题 {论文id: 标题}；不存在的论文不在结果里。"""
+        tf = self._title_fields()
+        papers = self._fill_titles(
+            self.papers.load_papers(paper_ids, field_ids={f.id for f in tf}), tf)
+        return {p.id: p.title for p in papers}
+
+    def list_all(self, include_archived: bool = False,
+                 field_ids: Iterable[int] | None = None) -> list[Paper]:
+        """列出论文。field_ids 为 None 时读取全部字段值；否则只读取这些字段
+        （加上用于生成标题的字段）——论文很多时，只读列表真正用到的列要快得多。"""
+        tf = self._title_fields()
+        load_ids = None if field_ids is None else set(field_ids) | {f.id for f in tf}
+        papers = self._fill_titles(self.papers.load_papers(field_ids=load_ids), tf)
         return papers if include_archived else [p for p in papers if not p.archived]
 
     def list_titles(self, include_archived: bool = False) -> list[Paper]:
         """轻量列表：只读取标题相关字段（选择论文的对话框等只需要标题的场合用）。"""
-        fids = [f.id for r in (ROLE_TITLE, ROLE_TITLE_EN, ROLE_ARXIV)
-                if (f := self.fields.by_role(r))]
-        papers = self._fill_titles(self.papers.load_papers(field_ids=fids))
-        return papers if include_archived else [p for p in papers if not p.archived]
+        return self.list_all(include_archived, field_ids=())
 
     def exists(self, paper_id: int) -> bool:
         return self.papers.exists(paper_id)

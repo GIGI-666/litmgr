@@ -91,7 +91,6 @@ def test_parse_real_cards(ctx):
 # ---------- 文件配对 ----------
 @needs_real
 def test_pairing_real_files():
-    paths = [REAL, ]
     groups = pair_files([REAL / "论文卡片", REAL / "零散论文翻译"] +
                         list(REAL.glob("*.pdf")))
     rt = next(g for g in groups if "RT-DocLayout" in g.title_hint)

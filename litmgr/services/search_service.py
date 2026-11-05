@@ -37,7 +37,13 @@ class SearchService:
     def run(self, q: SearchQuery | None = None) -> list[Paper]:
         q = q or SearchQuery()
         active = {f.id: f for f in self.fields.list()}
-        papers = self.papers.list_all(include_archived=q.include_archived)
+        # 只读取真正会用到的字段值：标题（自动包含）、列表里显示的列、过滤条件与排序用到的字段。
+        # 因此返回的 Paper 只保证带有这些字段的值（够列表显示用），其余字段请用 papers.get 读取。
+        needed = {f.id for f in active.values() if f.show_in_list}
+        needed.update(c.field_id for c in q.conditions)
+        if q.sort_key.startswith("f:"):
+            needed.add(int(q.sort_key[2:]))
+        papers = self.papers.list_all(include_archived=q.include_archived, field_ids=needed)
 
         # 1) 文本搜索：每个词都必须命中（交集）
         tokens = q.text.split()

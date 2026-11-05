@@ -307,7 +307,7 @@ class MainWindow(EventSubscriberMixin, QMainWindow):
         self.count_label.setText(f"显示 {len(papers)} / 共 {total} 篇")
         n_cond = len(self.query.conditions) + bool(self.query.read_status) + bool(self.query.min_rating)
         self.filter_btn.setText(f"高级过滤…（{n_cond}）" if n_cond else "高级过滤…")
-        self._on_selection(self.table.selected_ids())
+        # 选中项的预览/按钮状态已由 table.set_papers 发出的 selectionIdsChanged 更新，这里不必重复
 
     # ================= 选中与预览 =================
     def _on_selection(self, ids: list[int]) -> None:

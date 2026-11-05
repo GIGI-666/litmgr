@@ -71,7 +71,8 @@ class LineEditor(FieldEditor):
 
     def set_text(self, text: str) -> None:
         self._last = text
-        self.edit.setText(text)
+        if self.edit.text() != text:      # 内容没变就不动控件（避免无谓重绘、光标跳动）
+            self.edit.setText(text)
 
     def text(self) -> str:
         return self.edit.text()

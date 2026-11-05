@@ -158,3 +158,75 @@ def test_main_window_panels_and_saved_state(app, ctx, tmp_path, monkeypatch):
         assert main2.split.sizes()
     finally:
         wm.close_all()
+
+
+# ---------- 性能优化的回归测试（功能必须保持不变） ----------
+def test_search_loads_only_needed_fields_but_results_same(ctx):
+    """检索只读取列表需要的字段值；用隐藏字段做过滤/排序时结果仍然正确。"""
+    cites = ctx.fields.add("引用数", "number")                  # 不显示在列表里
+    hidden = ctx.fields.add("备注", "longtext")
+    title = ctx.fields.by_role("title")
+    ids = [ctx.papers.create({title.id: f"T{i}", cites.id: str(i * 10), hidden.id: "x"})
+           for i in range(5)]
+    got = ctx.search.run(SearchQuery(conditions=[Condition(cites.id, OP_GT, "15")],
+                                     sort_key=f"f:{cites.id}", sort_desc=False))
+    assert [p.id for p in got] == ids[2:]                       # 条件字段、排序字段都读到了
+    assert all(p.title for p in got)                            # 标题始终可用
+    assert all(hidden.id not in p.values for p in got)          # 没用到的字段没有读
+    assert ctx.papers.get(ids[0]).values[hidden.id].text == "x"  # get() 仍是完整数据
+
+
+def test_titles_of_and_recent_titles(ctx):
+    title = ctx.fields.by_role("title")
+    a = ctx.papers.create({title.id: "甲"})
+    b = ctx.papers.create({title.id: "乙"})
+    assert ctx.papers.titles_of([a, b, 99999]) == {a: "甲", b: "乙"}
+    assert ctx.papers.titles_of([]) == {}
+    ctx.reading.record_open(a)
+    ctx.reading.record_open(b)
+    assert [(r.paper_id, r.title) for r in ctx.reading.recent()] == [(b, "乙"), (a, "甲")]
+
+
+def test_markdown_page_cache_reuses_file(app, tmp_path):
+    pytest.importorskip("PySide6.QtWebEngineWidgets")
+    from litmgr.ui import md_viewer
+    v = md_viewer.MarkdownViewer()
+    v._dir = tmp_path
+    v.load_text("# 你好 $x^2$")
+    first = sorted(tmp_path.glob("page_*.html"))
+    assert len(first) == 1
+    mtime = first[0].stat().st_mtime_ns
+    v.load_text("# 你好 $x^2$")                                  # 同内容：复用，不重写
+    assert sorted(tmp_path.glob("page_*.html")) == first
+    assert first[0].stat().st_mtime_ns >= mtime
+    v.load_text("# 不同内容")
+    assert len(list(tmp_path.glob("page_*.html"))) == 2
+    for i in range(md_viewer._CACHE_KEEP + 5):                  # 缓存数量有上限
+        (tmp_path / f"page_{i:04d}.html").write_text("x")
+    md_viewer._prune_cache(tmp_path)
+    assert len(list(tmp_path.glob("page_*.html"))) == md_viewer._CACHE_KEEP
+
+
+def test_reader_loads_each_file_once(app, ctx, tmp_path, monkeypatch):
+    """打开阅读窗口时 PDF / 翻译各只加载一次（以前会重复加载两遍）。"""
+    pytest.importorskip("PySide6.QtWebEngineWidgets")
+    from litmgr.ui.md_viewer import MarkdownViewer
+    from litmgr.ui.pdf_viewer import PdfViewer
+    pid = ctx.papers.create()
+    pdf, md = tmp_path / "a.pdf", tmp_path / "a.md"
+    pdf.write_bytes(b"%PDF-1.4 x")
+    md.write_text("# t", encoding="utf-8")
+    ctx.files.add(pid, KIND_PDF, pdf)
+    ctx.files.add(pid, KIND_TRANSLATION, md)
+    calls = {"pdf": 0, "md": 0}
+    real_pdf, real_md = PdfViewer.load, MarkdownViewer.load_text
+    monkeypatch.setattr(PdfViewer, "load",
+                        lambda self, p: (calls.__setitem__("pdf", calls["pdf"] + 1), real_pdf(self, p))[1])
+    monkeypatch.setattr(MarkdownViewer, "load_text",
+                        lambda self, t: (calls.__setitem__("md", calls["md"] + 1), real_md(self, t))[1])
+    wm = WindowManager(ctx)
+    try:
+        wm.open_reader(pid)
+        assert calls == {"pdf": 1, "md": 1}
+    finally:
+        wm.close_all()

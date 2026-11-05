@@ -78,9 +78,9 @@ class ReaderWindow(EventSubscriberMixin, QMainWindow):
         self.subscribe(ctx.events, Events.FILES_CHANGED, self._on_files_changed)
         self.subscribe(ctx.events, Events.PAPER_DELETED, self._on_deleted)
         self.subscribe(ctx.events, Events.PAPER_CHANGED, self._on_paper_changed)
-        self._reload_lists()
+        self._reload_lists(load=False)   # 初次只填充下拉框；真正的加载在下面统一做一次，避免重复加载
         if file_id is not None:
-            self.show_file(file_id)
+            self.show_file(file_id, load=False)
         if restore_state:
             self._select_files_from_state(restore_state)
         self._load_pdf()
@@ -134,7 +134,7 @@ class ReaderWindow(EventSubscriberMixin, QMainWindow):
         self.split.setSizes([int(total * r) for r in ratio])
 
     # ---------- 文件列表 ----------
-    def _reload_lists(self) -> None:
+    def _reload_lists(self, load: bool = True) -> None:
         cur_pdf, cur_md = self.pdf_box.currentData(), self.md_box.currentData()
         self.pdf_box.clear()
         self.md_box.clear()
@@ -149,6 +149,8 @@ class ReaderWindow(EventSubscriberMixin, QMainWindow):
         self.show_md.setEnabled(self.md_box.count() > 0)
         self._apply_visibility()
         # 当前正在看的文件被移除/换成别的文件时，重新加载
+        if not load:
+            return
         if self.pdf_box.currentData() != cur_pdf and self.pdf_box.count():
             self._load_pdf()
         if self.md_box.currentData() != cur_md and self.md_box.count():
@@ -158,15 +160,16 @@ class ReaderWindow(EventSubscriberMixin, QMainWindow):
         self.pdf.setVisible(self.show_pdf.isChecked() and self.pdf_box.count() > 0)
         self.md.setVisible(self.show_md.isChecked() and self.md_box.count() > 0)
 
-    def show_file(self, file_id: int) -> None:
-        """切换到指定文件（PDF 或翻译）。"""
+    def show_file(self, file_id: int, load: bool = True) -> None:
+        """切换到指定文件（PDF 或翻译）。load=False 时只选中不加载（由调用方随后统一加载）。"""
         for box, loader, cb in ((self.pdf_box, self._load_pdf, self.show_pdf),
                                 (self.md_box, self._load_md, self.show_md)):
             i = box.findData(file_id)
             if i >= 0:
                 box.setCurrentIndex(i)
                 cb.setChecked(True)
-                loader()
+                if load:
+                    loader()
 
     # ---------- 加载 ----------
     @guarded

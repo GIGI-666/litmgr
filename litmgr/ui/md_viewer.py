@@ -12,10 +12,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import html
 import tempfile
 from pathlib import Path
 
+import shiboken6
 from markdown_it import MarkdownIt
 from mdit_py_plugins.dollarmath import dollarmath_plugin
 from PySide6.QtCore import QTimer, QUrl
@@ -61,18 +63,63 @@ _PAGE = """<!doctype html>
 </script></body></html>"""
 
 
+_MD: MarkdownIt | None = None
+
+
 def render_markdown(text: str) -> str:
     """md -> HTML 片段（公式保留为 .math 元素，交给页面里的 KaTeX 渲染）。"""
-    md = (MarkdownIt("commonmark", {"html": True, "breaks": False})
-          .enable("table").enable("strikethrough")
-          .use(dollarmath_plugin, allow_space=True, allow_digits=True, double_inline=True))
-    return md.render(text)
+    global _MD
+    if _MD is None:      # 解析器配置一次即可复用，不必每次打开都重新构建
+        _MD = (MarkdownIt("commonmark", {"html": True, "breaks": False})
+               .enable("table").enable("strikethrough")
+               .use(dollarmath_plugin, allow_space=True, allow_digits=True, double_inline=True))
+    return _MD.render(text)
 
 
 def build_page(text: str) -> str:
     return _PAGE.format(katex_css=(KATEX_DIR / "katex.min.css").as_uri(),
                         katex_js=(KATEX_DIR / "katex.min.js").as_uri(),
                         body=render_markdown(text))
+
+
+_CACHE_PREFIX = "page_"
+_CACHE_VERSION = "v1|"      # 页面模板/渲染方式变化时改动，使旧缓存自动失效
+_CACHE_KEEP = 40            # 最多保留多少个缓存页面
+
+
+def _prune_cache(directory: Path) -> None:
+    """清理缓存目录：只保留最近使用的若干页面，并顺手删掉旧版本留下的临时文件。"""
+    try:
+        pages = sorted(directory.glob(f"{_CACHE_PREFIX}*.html"), key=lambda p: p.stat().st_mtime,
+                       reverse=True)
+        for old in pages[_CACHE_KEEP:]:
+            old.unlink(missing_ok=True)
+        for legacy in directory.glob("view_*.html"):
+            legacy.unlink(missing_ok=True)
+    except OSError:
+        pass   # 清理失败不影响阅读
+
+
+_warm_page: QWebEnginePage | None = None
+
+
+def prewarm() -> None:
+    """提前启动 QtWebEngine（浏览器进程、默认配置），让第一次打开阅读窗口不用再等。
+
+    程序启动、主窗口显示后空闲时调用一次；退出前调用 release_prewarm()。
+    """
+    global _warm_page
+    if _warm_page is None:
+        _warm_page = QWebEnginePage()
+        _warm_page.setHtml("<html></html>")
+
+
+def release_prewarm() -> None:
+    """释放预热用的页面（必须在 QApplication 结束前，否则 WebEngine 会报告资源未释放）。"""
+    global _warm_page
+    if _warm_page is not None:
+        shiboken6.delete(_warm_page)
+        _warm_page = None
 
 
 class MarkdownViewer(QWidget):
@@ -99,7 +146,7 @@ class MarkdownViewer(QWidget):
         lay.addWidget(self.web, 1)
         self._dir = Path(tempfile.gettempdir()) / "litmgr_view"
         self._dir.mkdir(exist_ok=True)
-        self._seq = 0
+        _prune_cache(self._dir)
         # 阅读位置：用“滚动比例(0~1)”表示，缩放后也仍然对得上
         self._frac = 0.0
         self._pending_frac: float | None = None
@@ -138,9 +185,16 @@ class MarkdownViewer(QWidget):
 
     def load_text(self, text: str) -> None:
         """显示一段 markdown 文本。"""
-        self._seq += 1
-        f = self._dir / f"view_{id(self)}_{self._seq % 2}.html"   # 轮换两个文件避免加载时被覆盖
-        f.write_text(build_page(text), encoding="utf-8")
+        # 页面按“内容哈希”缓存：同一份翻译再次打开（如从最近阅读还原）直接复用，跳过耗时的渲染；
+        # 文件名由内容决定，也就不会出现加载时被覆盖的问题
+        # （KaTeX 的路径也计入：程序文件夹挪动后，页面里写死的资源路径会变，旧缓存要失效）
+        key = hashlib.sha1(
+            f"{_CACHE_VERSION}{KATEX_DIR}|{text}".encode("utf-8", "surrogatepass")).hexdigest()
+        f = self._dir / f"{_CACHE_PREFIX}{key}.html"
+        if not f.exists():
+            f.write_text(build_page(text), encoding="utf-8")
+        else:
+            f.touch()    # 刷新“最近使用”时间，清理时优先保留
         self.web.setUrl(QUrl.fromLocalFile(str(f)))
 
     def show_message(self, text: str) -> None:

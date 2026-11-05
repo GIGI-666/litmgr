@@ -51,6 +51,8 @@ class Database:
             # WAL 模式下 NORMAL 仍能保证数据库不损坏，只是极端断电时可能丢最后几次提交，
             # 换来写入速度大幅提升
             self.conn.execute("PRAGMA synchronous = NORMAL")
+        self.conn.execute("PRAGMA cache_size = -32000")      # 页缓存约 32MB（默认仅约 2MB）
+        self.conn.execute("PRAGMA temp_store = MEMORY")      # 排序/临时表放内存
 
     def after_replace(self) -> None:
         """整库内容被替换后调用（恢复备份）：重设连接参数，并把旧结构的库升级到当前版本。"""

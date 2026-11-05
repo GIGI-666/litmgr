@@ -97,11 +97,14 @@ class PaperFieldForm(QScrollArea):
         self._refresh_pending()
 
     def _refresh_pending(self) -> None:
+        items = self.ctx.pending.list(self.paper_id)
+        if not items and not self.pending_lay.count():
+            self.pending_box.setVisible(False)
+            return      # 本来就没有待归类内容：不必重建（每次论文变化都会走到这里）
         while self.pending_lay.count():
             w = self.pending_lay.takeAt(0).widget()
             if w:
                 w.deleteLater()
-        items = self.ctx.pending.list(self.paper_id)
         self.pending_box.setVisible(bool(items))
         for p in items:
             row = QWidget()

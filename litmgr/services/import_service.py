@@ -171,7 +171,7 @@ class ImportService:
     def _existing_index(self, title_f, title_en_f, arxiv_f) -> dict[tuple[str, str], int]:
         """已有论文的 arXiv 号/标题索引，用于重复检测。"""
         idx: dict[tuple[str, str], int] = {}
-        for p in self.papers.list_all(include_archived=True):
+        for p in self.papers.list_titles(include_archived=True):
             if arxiv_f and (a := _arxiv_of(p.text_of(arxiv_f.id))):
                 idx.setdefault(("arxiv", a), p.id)
             for f in (title_f, title_en_f):

@@ -64,13 +64,10 @@ class ReadingHistoryService:
         return data if isinstance(data, dict) else {}
 
     def recent(self) -> list[HistoryItem]:
-        items: list[HistoryItem] = []
-        for rec in self.repo.list_recent(self.limit):
-            if not self.papers.exists(rec.paper_id):
-                continue
-            items.append(HistoryItem(rec.paper_id, self.papers.get(rec.paper_id).title,
-                                     rec.last_opened[:19]))
-        return items
+        records = self.repo.list_recent(self.limit)
+        titles = self.papers.titles_of([r.paper_id for r in records])   # 一次查询取全部标题
+        return [HistoryItem(r.paper_id, titles[r.paper_id], r.last_opened[:19])
+                for r in records if r.paper_id in titles]
 
     def remove(self, paper_id: int) -> None:
         self.repo.remove(paper_id)
