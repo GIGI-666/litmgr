@@ -1,46 +1,42 @@
 """论文服务。
 
-【作用】论文的增删改查中心：创建论文、修改字段值、阅读状态/星级、管理论文文件。
+【作用】论文的增删改查中心：创建论文、修改字段值、阅读状态/星级。
+    论文文件的管理由 services.file_service 负责，待归类内容由 services.pending_service 负责。
 【职责】
     - 写入字段值时按字段类型规范化（core.field_types），并同步更新全文索引
     - 每次字段修改写入修改历史（用于查看与撤销）
     - 修改后发布事件，界面自动刷新
-    - 管理论文文件（复制进文献库、记录、索引翻译正文、删除）
     - 计算论文显示标题（按“角色”取字段，不依赖字段名）
-【依赖】storage 各仓库、storage.library_fs、services.field_service、core.events。
+【依赖】storage 各仓库、services.field_service / file_service、core.events。
 【被谁调用】ui 各窗口、services.import_service / compare_service / history_service。
 【扩展点】新的“论文级属性”（如优先级）在这里加方法，并发布 PAPER_CHANGED。
 """
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from ..core.errors import NotFoundError, ValidationError
 from ..core.events import EventBus, Events
 from ..core.field_types import get_type
-from ..core.models import (KIND_TRANSLATION, READ_STATUS, ROLE_ARXIV, ROLE_TITLE,
-                           ROLE_TITLE_EN, FieldValue, Paper, PaperFile)
-from ..storage.file_repo import FileRepo
-from ..storage.library_fs import LibraryFS
+from ..core.models import (READ_STATUS, ROLE_ARXIV, ROLE_TITLE, ROLE_TITLE_EN, FieldValue,
+                           Paper)
 from ..storage.log_repo import LogRepo
 from ..storage.note_repo import NoteRepo
 from ..storage.paper_repo import PaperRepo
 from ..storage.search_repo import SearchRepo
 from .field_service import FieldService
+from .file_service import FileService
 
 
 class PaperService:
-    def __init__(self, paper_repo: PaperRepo, file_repo: FileRepo, search_repo: SearchRepo,
-                 log_repo: LogRepo, note_repo: NoteRepo, fields: FieldService,
-                 fs: LibraryFS, events: EventBus) -> None:
+    def __init__(self, paper_repo: PaperRepo, search_repo: SearchRepo, log_repo: LogRepo,
+                 note_repo: NoteRepo, fields: FieldService, files: FileService,
+                 events: EventBus) -> None:
         self.papers = paper_repo
-        self.files = file_repo
+        self.files = files
         self.search = search_repo
         self.log = log_repo
         self.notes = note_repo
         self.fields = fields
-        self.fs = fs
         self.events = events
 
     # ---------- 读取 ----------
@@ -78,13 +74,13 @@ class PaperService:
     def exists(self, paper_id: int) -> bool:
         return self.papers.exists(paper_id)
 
+    def get_field_text(self, paper_id: int, field_id: int) -> str:
+        """读取某论文某字段当前的文本（没有则为空串）。"""
+        return self.papers.get_value(paper_id, field_id).text
+
     def transaction(self):
         """事务上下文：with 块内的多步修改要么全部成功，要么全部撤销（可嵌套）。"""
         return self.papers.db.transaction()
-
-    def discard_files_dir(self, paper_id: int) -> None:
-        """删除某论文在文献库里的文件夹（导入失败回滚后清理已复制的文件用）。"""
-        self.fs.remove_paper_dir(paper_id)
 
     def count(self) -> int:
         return self.papers.count()
@@ -103,14 +99,13 @@ class PaperService:
     def delete(self, paper_id: int) -> None:
         """永久删除论文及其库内文件、索引。"""
         with self.papers.db.transaction():     # 数据库部分要么全删，要么全不删
-            for f in self.files.list_for_paper(paper_id):
-                self.search.remove_file(f.id)
+            self.files.drop_index_of_paper(paper_id)
             for v in self.papers.load_papers([paper_id]):
                 for fid in v.values:
                     self.search.remove_field(paper_id, fid)
             self.search.index_notes(paper_id, "")
             self.papers.delete(paper_id)
-        self.fs.remove_paper_dir(paper_id)     # 数据库提交成功后再删文件
+        self.files.discard_dir(paper_id)       # 数据库提交成功后再删文件
         self.events.publish(Events.PAPER_DELETED, paper_id=paper_id)
 
     def set_archived(self, paper_id: int, archived: bool) -> None:
@@ -164,51 +159,6 @@ class PaperService:
         self.papers.set_rating(paper_id, max(0, min(5, int(rating))))
         self.events.publish(Events.PAPER_CHANGED, paper_id=paper_id)
 
-    # ---------- 文件 ----------
-    def list_files(self, paper_id: int, kind: str | None = None) -> list[PaperFile]:
-        return self.files.list_for_paper(paper_id, kind)
-
-    def add_file(self, paper_id: int, kind: str, src: Path | str, *, subtype: str = "",
-                 display_name: str | None = None, publish: bool = True) -> PaperFile:
-        """把外部文件复制进文献库并登记。翻译文件会同时建立正文索引。"""
-        src = Path(src)
-        rel, digest = self.fs.add_file(paper_id, kind, src)
-        fid = self.files.add(paper_id, kind, rel, display_name or src.name, subtype, digest)
-        if kind == KIND_TRANSLATION:
-            self._index_translation(paper_id, fid, rel)
-        if publish:
-            self.events.publish(Events.FILES_CHANGED, paper_id=paper_id)
-        return self.files.get(fid)
-
-    def _index_translation(self, paper_id: int, file_id: int, rel_path: str) -> None:
-        try:
-            self.search.index_file(paper_id, file_id, self.fs.read_text(rel_path))
-        except OSError:
-            pass  # 文件读不到时不影响其他功能
-
-    def remove_file(self, file_id: int) -> None:
-        f = self.files.get(file_id)
-        if not f:
-            return
-        self.search.remove_file(file_id)
-        self.files.delete(file_id)
-        # 同一物理文件可能被别的记录复用（理论上不会，但保险起见）
-        if not any(x.rel_path == f.rel_path for x in self.files.find_by_hash(f.sha256)):
-            self.fs.remove_file(f.rel_path)
-        self.events.publish(Events.FILES_CHANGED, paper_id=f.paper_id)
-
-    def set_file_subtype(self, file_id: int, subtype: str) -> None:
-        f = self.files.get(file_id)
-        if f:
-            self.files.update_subtype(file_id, subtype)
-            self.events.publish(Events.FILES_CHANGED, paper_id=f.paper_id)
-
-    def abs_path(self, f: PaperFile) -> Path:
-        return self.fs.abs_path(f.rel_path)
-
-    def read_text(self, f: PaperFile) -> str:
-        return self.fs.read_text(f.rel_path)
-
     # ---------- 全库重建索引 ----------
     def reindex_all(self) -> None:
         """重建全文索引（恢复备份、手动修复时用）。"""
@@ -218,5 +168,4 @@ class PaperService:
                 for fid, val in p.values.items():
                     self.search.index_field(p.id, fid, val.text)
                 self.search.index_notes(p.id, self.notes.all_text(p.id))
-                for f in self.files.list_for_paper(p.id, KIND_TRANSLATION):
-                    self._index_translation(p.id, f.id, f.rel_path)
+                self.files.reindex_translations(p.id)

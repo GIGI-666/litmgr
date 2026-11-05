@@ -8,61 +8,22 @@
     - 字段条件：按字段类型提供包含/等于/为空/大于/小于/含标签等
     - 标签、分组、阅读状态、最低星级过滤
     - 排序：id / 更新时间 / 标题 / 阅读状态 / 星级 / 任意字段
-    - SearchQuery 可序列化为 dict，用于“保存的检索”
-【依赖】storage.search_repo / organize_repo；services.field_service / paper_service。
-【被谁调用】ui.main_window / ui.paper_table；services.organize_service（保存的检索）。
-【扩展点】新增过滤维度：在 SearchQuery 加字段，并在 run() 里加一步过滤。
+【依赖】core.query（SearchQuery）、core.field_types（条件判断）；
+    storage.search_repo / organize_repo；services.field_service / paper_service。
+【被谁调用】ui.main_window / ui.paper_table。
+【扩展点】新增过滤维度：在 core.query.SearchQuery 加字段，并在 run() 里加一步过滤；
+    新增/修改某类型字段的比较规则：改对应 FieldType 的 matches，不用动这里。
 """
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
-
-from ..core.field_types import (OP_CONTAINS, OP_EMPTY, OP_EQUALS, OP_GT, OP_HAS, OP_LT,
-                                OP_NOT_EMPTY, get_type)
+from ..core.field_types import get_type
 from ..core.models import FieldDef, Paper
+from ..core.query import Condition, SearchQuery
 from ..storage.organize_repo import OrganizeRepo
 from ..storage.search_repo import SearchRepo
 from .field_service import FieldService
 from .paper_service import PaperService
-
-
-@dataclass
-class Condition:
-    field_id: int
-    op: str
-    value: str = ""
-
-
-@dataclass
-class SearchQuery:
-    text: str = ""
-    scope_field_ids: list[int] | None = None   # None = 所有字段
-    include_fulltext: bool = True              # 同时搜索翻译正文、笔记
-    conditions: list[Condition] = field(default_factory=list)
-    tag_ids: list[int] = field(default_factory=list)
-    collection_id: int | None = None
-    read_status: str | None = None
-    min_rating: int = 0
-    include_archived: bool = False
-    sort_key: str = "id"                       # id/updated/title/status/rating/f:<字段id>
-    sort_desc: bool = True
-
-    def to_dict(self) -> dict:
-        return asdict(self)
-
-    @classmethod
-    def from_dict(cls, d: dict) -> "SearchQuery":
-        d = dict(d)
-        d["conditions"] = [Condition(**c) for c in d.get("conditions", [])]
-        known = {k: v for k, v in d.items() if k in cls.__dataclass_fields__}
-        return cls(**known)
-
-def _to_float(s: str) -> float | None:
-    try:
-        return float(s)
-    except (TypeError, ValueError):
-        return None
 
 
 class SearchService:
@@ -118,30 +79,10 @@ class SearchService:
     # ---------- 字段条件判断 ----------
     @staticmethod
     def _match(p: Paper, f: FieldDef, c: Condition) -> bool:
+        """各操作符的具体判断规则由字段类型自己负责（FieldType.matches）。"""
         val = p.values.get(f.id)
-        text = val.text.strip() if val else ""
-        if c.op == OP_EMPTY:
-            return not text
-        if c.op == OP_NOT_EMPTY:
-            return bool(text)
-        needle = c.value.strip().casefold()
-        if c.op == OP_CONTAINS:
-            return needle in text.casefold()
-        if c.op == OP_EQUALS:
-            ft = get_type(f.type)
-            return ft.compare_text(text, val.json if val else None) == ft.compare_text(c.value, None)
-        if c.op == OP_HAS:
-            items = (val.json if val and isinstance(val.json, list) else [text])
-            return any(needle == str(i).casefold() for i in items) if items else False
-        if c.op in (OP_GT, OP_LT):
-            if not text:
-                return False
-            a, b = _to_float(text), _to_float(c.value)
-            if f.type in ("number", "rating") and a is not None and b is not None:
-                return a > b if c.op == OP_GT else a < b
-            norm_c, _ = get_type(f.type).parse(c.value)
-            return text > norm_c if c.op == OP_GT else text < norm_c
-        return True
+        return get_type(f.type).matches(
+            c.op, val.text if val else "", val.json if val else None, c.value)
 
     # ---------- 排序 ----------
     @staticmethod

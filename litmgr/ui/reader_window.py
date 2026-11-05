@@ -138,7 +138,7 @@ class ReaderWindow(EventSubscriberMixin, QMainWindow):
         cur_pdf, cur_md = self.pdf_box.currentData(), self.md_box.currentData()
         self.pdf_box.clear()
         self.md_box.clear()
-        for f in self.ctx.papers.list_files(self.paper_id):
+        for f in self.ctx.files.list(self.paper_id):
             if f.kind == KIND_PDF:
                 self.pdf_box.addItem(f"[{f.subtype or 'PDF'}] {f.display_name}", f.id)
             elif f.kind == KIND_TRANSLATION:
@@ -174,17 +174,17 @@ class ReaderWindow(EventSubscriberMixin, QMainWindow):
         fid = self.pdf_box.currentData()
         if fid is None:
             return
-        f = next(x for x in self.ctx.papers.list_files(self.paper_id) if x.id == fid)
-        self.pdf.load(str(self.ctx.papers.abs_path(f)))
+        f = next(x for x in self.ctx.files.list(self.paper_id) if x.id == fid)
+        self.pdf.load(str(self.ctx.files.abs_path(f)))
 
     @guarded
     def _load_md(self) -> None:
         fid = self.md_box.currentData()
         if fid is None:
             return
-        f = next(x for x in self.ctx.papers.list_files(self.paper_id) if x.id == fid)
+        f = next(x for x in self.ctx.files.list(self.paper_id) if x.id == fid)
         try:
-            self.md.load_text(self.ctx.papers.read_text(f))
+            self.md.load_text(self.ctx.files.read_text(f))
         except OSError as e:
             self.md.show_message(f"无法读取翻译文件：{e}")
 
@@ -192,8 +192,8 @@ class ReaderWindow(EventSubscriberMixin, QMainWindow):
     def _open_external(self) -> None:
         fid = self.pdf_box.currentData()
         if fid is not None:
-            f = next(x for x in self.ctx.papers.list_files(self.paper_id) if x.id == fid)
-            open_path(self.ctx.papers.abs_path(f))
+            f = next(x for x in self.ctx.files.list(self.paper_id) if x.id == fid)
+            open_path(self.ctx.files.abs_path(f))
 
     def _update_title(self) -> None:
         self.setWindowTitle(f"阅读 - {self.ctx.papers.get(self.paper_id).title}")

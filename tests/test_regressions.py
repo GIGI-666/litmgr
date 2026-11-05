@@ -97,14 +97,14 @@ def test_import_failure_leaves_no_half_paper(ctx, tmp_path, monkeypatch):
     plan = ctx.imports.build_plan([src])
     assert len(plan.items) == 1
 
-    real_add_file = ctx.papers.add_file
+    real_add_file = ctx.files.add
 
     def flaky(pid, kind, path, **kw):
         if kind == "pdf":
             raise OSError("磁盘已满（模拟）")
         return real_add_file(pid, kind, path, **kw)
 
-    monkeypatch.setattr(ctx.papers, "add_file", flaky)
+    monkeypatch.setattr(ctx.files, "add", flaky)
     res = ctx.imports.execute(plan, {})
     assert len(res.errors) == 1 and res.created == []
     assert ctx.papers.count() == 0                              # 数据库里没有半成品
@@ -119,7 +119,7 @@ def test_import_failure_leaves_no_half_paper(ctx, tmp_path, monkeypatch):
 def test_pending_content_is_escaped(app, ctx):
     from litmgr.ui.field_form import PaperFieldForm
     pid = ctx.papers.create({_title(ctx).id: "P"})
-    ctx.imports.log.add_pending(pid, "<b>标签</b>", "x < y & <script>")
+    ctx.pending.add(pid, "<b>标签</b>", "x < y & <script>")
     form = PaperFieldForm(ctx, pid)
     texts = [lb.text() for lb in form.pending_box.findChildren(QLabel)]
     assert any("&lt;script&gt;" in t and "&lt;b&gt;" in t for t in texts)

@@ -31,7 +31,7 @@ from ..core.config import AppConfig
 from ..core.events import Events
 from ..core.models import KIND_LABELS, READ_STATUS
 from ..services.app_context import AppContext
-from ..services.search_service import SearchQuery
+from ..core.query import SearchQuery
 from .backup_dialog import BackupDialog
 from .field_manager_dialog import FieldManagerDialog
 from .filter_dialog import FilterDialog
@@ -399,7 +399,7 @@ class MainWindow(EventSubscriberMixin, QMainWindow):
 
     def _effective_query(self) -> SearchQuery:
         """当前搜索框/过滤条件 + 侧栏选中项，合成最终查询。"""
-        q = SearchQuery.from_dict(self.query.to_dict())
+        q = self.query.copy()
         kind = self.nav[0]
         if kind == "status":
             q.read_status = self.nav[1]
@@ -470,7 +470,7 @@ class MainWindow(EventSubscriberMixin, QMainWindow):
             if text:
                 short = text if len(text) <= 260 else text[:260] + "…"
                 parts.append(f"<p><b>{h.escape(f.name)}</b><br>{h.escape(short).replace(chr(10), '<br>')}</p>")
-        files = self.ctx.papers.list_files(paper_id)
+        files = self.ctx.files.list(paper_id)
         if files:
             parts.append("<hr><p><b>文件</b><br>" + "<br>".join(
                 f"[{KIND_LABELS[f.kind]}{('/' + f.subtype) if f.subtype else ''}] {h.escape(f.display_name)}"

@@ -43,7 +43,7 @@ class FilePanel(QWidget):
     def refresh(self) -> None:
         self.tree.clear()
         order = {KIND_PDF: 0, KIND_TRANSLATION: 1, KIND_CARD: 2, KIND_ATTACHMENT: 3}
-        files = sorted(self.ctx.papers.list_files(self.paper_id), key=lambda f: (order[f.kind], f.id))
+        files = sorted(self.ctx.files.list(self.paper_id), key=lambda f: (order[f.kind], f.id))
         for f in files:
             it = QTreeWidgetItem([KIND_LABELS[f.kind], f.subtype, f.display_name, f.added_at])
             it.setData(0, Qt.UserRole, f.id)
@@ -53,7 +53,7 @@ class FilePanel(QWidget):
         it = self.tree.currentItem()
         if not it:
             return None
-        return next((f for f in self.ctx.papers.list_files(self.paper_id)
+        return next((f for f in self.ctx.files.list(self.paper_id)
                      if f.id == it.data(0, Qt.UserRole)), None)
 
     @guarded
@@ -64,20 +64,20 @@ class FilePanel(QWidget):
         if f.kind in (KIND_PDF, KIND_TRANSLATION):
             self.windows.open_reader(self.paper_id, file_id=f.id)
         else:
-            open_path(self.ctx.papers.abs_path(f))
+            open_path(self.ctx.files.abs_path(f))
 
     @guarded
     def open_external(self) -> None:
         f = self._selected_file()
         if f:
-            open_path(self.ctx.papers.abs_path(f))
+            open_path(self.ctx.files.abs_path(f))
 
     @guarded
     def add_files(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(self, "添加文件到这篇论文")
         for p in paths:
             info = classify(Path(p))
-            self.ctx.papers.add_file(self.paper_id, info.kind, p, subtype=info.subtype)
+            self.ctx.files.add(self.paper_id, info.kind, p, subtype=info.subtype)
 
     @guarded
     def set_subtype(self) -> None:
@@ -88,7 +88,7 @@ class FilePanel(QWidget):
         cur = options.index(f.subtype) if f.subtype in options else 0
         val, ok = QInputDialog.getItem(self, "PDF 子类型", "类型：", options, cur, True)
         if ok:
-            self.ctx.papers.set_file_subtype(f.id, val.strip())
+            self.ctx.files.set_subtype(f.id, val.strip())
 
     @guarded
     def remove_selected(self) -> None:
@@ -96,4 +96,4 @@ class FilePanel(QWidget):
         if f and QMessageBox.question(
                 self, "移除文件", f"从文献库移除并删除库内副本？\n{f.display_name}\n（你原来的源文件不受影响）"
         ) == QMessageBox.Yes:
-            self.ctx.papers.remove_file(f.id)
+            self.ctx.files.remove(f.id)

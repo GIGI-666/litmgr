@@ -1,15 +1,14 @@
-"""修改历史与待归类内容仓库（change_log / pending_content 表）。
+"""修改历史仓库（change_log 表）。
 
-【作用】
-    - change_log：记录每次字段值修改的“旧值 -> 新值”，用于查看历史与撤销。
-    - pending_content：导入时无法归入任何字段的内容，暂存等待用户归类。
+【作用】记录每次字段值修改的“旧值 -> 新值”，用于查看历史与撤销。
+    （导入时的待归类内容见 storage.pending_repo。）
 【依赖】storage.database；core.models。
-【被谁调用】services.history_service、services.paper_service、services.import_service。
+【被谁调用】services.history_service、services.paper_service。
 """
 
 from __future__ import annotations
 
-from ..core.models import ChangeLogEntry, PendingContent
+from ..core.models import ChangeLogEntry
 from .database import Database, now_str
 
 
@@ -51,25 +50,3 @@ class LogRepo:
 
     def mark_undone(self, entry_id: int) -> None:
         self.db.execute("UPDATE change_log SET undone=1 WHERE id=?", (entry_id,))
-
-    # ---------- 待归类内容 ----------
-    def add_pending(self, paper_id: int, label: str, content: str) -> int:
-        cur = self.db.execute(
-            "INSERT INTO pending_content(paper_id,label,content) VALUES (?,?,?)",
-            (paper_id, label, content))
-        return cur.lastrowid
-
-    def list_pending(self, paper_id: int | None = None) -> list[PendingContent]:
-        if paper_id is None:
-            rows = self.db.query("SELECT * FROM pending_content ORDER BY paper_id, id")
-        else:
-            rows = self.db.query("SELECT * FROM pending_content WHERE paper_id=? ORDER BY id",
-                                 (paper_id,))
-        return [PendingContent(r["id"], r["paper_id"], r["label"], r["content"]) for r in rows]
-
-    def get_pending(self, pid: int) -> PendingContent | None:
-        r = self.db.query_one("SELECT * FROM pending_content WHERE id=?", (pid,))
-        return PendingContent(r["id"], r["paper_id"], r["label"], r["content"]) if r else None
-
-    def delete_pending(self, pid: int) -> None:
-        self.db.execute("DELETE FROM pending_content WHERE id=?", (pid,))

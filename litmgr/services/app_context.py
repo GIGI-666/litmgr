@@ -22,17 +22,20 @@ from ..storage.log_repo import LogRepo
 from ..storage.note_repo import NoteRepo
 from ..storage.organize_repo import OrganizeRepo
 from ..storage.paper_repo import PaperRepo
+from ..storage.pending_repo import PendingRepo
 from ..storage.reading_repo import ReadingRepo
 from ..storage.search_repo import SearchRepo
 from .backup_service import BackupService
 from .compare_service import CompareService
 from .export_service import ExportService
 from .field_service import FieldService
+from .file_service import FileService
 from .history_service import HistoryService
 from .import_service import ImportService
 from .note_service import NoteService
 from .organize_service import OrganizeService
 from .paper_service import PaperService
+from .pending_service import PendingService
 from .reading_history_service import ReadingHistoryService
 from .search_service import SearchService
 
@@ -55,14 +58,17 @@ class AppContext:
         # 服务（services）
         self.fields = FieldService(field_repo, paper_repo, search_repo, self.events)
         self.fields.seed_defaults_if_empty()
-        self.papers = PaperService(paper_repo, file_repo, search_repo, log_repo, note_repo,
-                                   self.fields, self.fs, self.events)
+        self.files = FileService(file_repo, search_repo, self.fs, self.events)
+        self.papers = PaperService(paper_repo, search_repo, log_repo, note_repo,
+                                   self.fields, self.files, self.events)
         self.search = SearchService(search_repo, organize_repo, self.fields, self.papers)
         self.organize = OrganizeService(organize_repo, self.events)
         self.notes = NoteService(note_repo, search_repo, self.events)
         self.history = HistoryService(log_repo, self.papers)
         self.reading = ReadingHistoryService(ReadingRepo(self.db), self.papers, self.events)
-        self.imports = ImportService(self.fields, self.papers, log_repo, organize_repo, self.events)
+        self.pending = PendingService(PendingRepo(self.db), self.papers, self.events)
+        self.imports = ImportService(self.fields, self.papers, self.files, self.pending,
+                                     self.organize, self.events)
         self.compare = CompareService(self.papers, self.fields)
         self.export = ExportService(self.papers, self.fields)
         self.backup = BackupService(self.db, self.fs, self.papers, self.events)

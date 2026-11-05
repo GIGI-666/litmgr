@@ -278,7 +278,7 @@ class ImportWizard(QDialog):
             if res.errors:
                 lines.append("<p style='color:#c00'>以下论文导入出错：</p><ul>" +
                              "".join(f"<li>{html.escape(e)}</li>" for e in res.errors) + "</ul>")
-            pend = self.ctx.imports.list_pending()
+            pend = self.ctx.pending.list()
             if pend:
                 lines.append(f"<p>仍有 <b>{len(pend)}</b> 条“待归类内容”，"
                              "可在对应论文详情页的“字段”页顶部处理。</p>")

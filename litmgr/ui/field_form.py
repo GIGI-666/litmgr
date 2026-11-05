@@ -101,7 +101,7 @@ class PaperFieldForm(QScrollArea):
             w = self.pending_lay.takeAt(0).widget()
             if w:
                 w.deleteLater()
-        items = self.ctx.imports.list_pending(self.paper_id)
+        items = self.ctx.pending.list(self.paper_id)
         self.pending_box.setVisible(bool(items))
         for p in items:
             row = QWidget()
@@ -133,8 +133,8 @@ class PaperFieldForm(QScrollArea):
 
     @guarded
     def _assign(self, pending_id: int, field_id: int) -> None:
-        self.ctx.imports.assign_pending(pending_id, field_id)
+        self.ctx.pending.assign(pending_id, field_id)
 
     @guarded
     def _discard(self, pending_id: int) -> None:
-        self.ctx.imports.discard_pending(pending_id)
+        self.ctx.pending.discard(pending_id)

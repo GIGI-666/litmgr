@@ -16,7 +16,7 @@ from ..core.errors import DuplicateError, ValidationError
 from ..core.events import EventBus, Events
 from ..core.models import Collection, SavedView, Tag
 from ..storage.organize_repo import OrganizeRepo
-from .search_service import SearchQuery
+from ..core.query import SearchQuery
 
 
 class OrganizeService:

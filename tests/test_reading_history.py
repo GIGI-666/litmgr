@@ -95,8 +95,8 @@ def test_reader_restores_state(app, ctx, tmp_path):
     md = tmp_path / "a_翻译.md"
     md.write_text("# 标题\n\n" + "\n\n".join(f"第 {i} 段，公式 $x_{i}^2$" for i in range(400)),
                   encoding="utf-8")
-    ctx.papers.add_file(pid, KIND_PDF, pdf)
-    ctx.papers.add_file(pid, KIND_TRANSLATION, md)
+    ctx.files.add(pid, KIND_PDF, pdf)
+    ctx.files.add(pid, KIND_TRANSLATION, md)
 
     wm = WindowManager(ctx)
     try:

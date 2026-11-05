@@ -3,7 +3,7 @@
 【作用】设置“按字段条件过滤”：可添加多条条件（字段 + 操作 + 值），全部满足才显示；
     另可限定阅读状态、最低星级、是否包含已归档论文。
     可用的操作随字段类型变化（日期有“晚于/早于”，标签有“含有标签”等）。
-【依赖】core.field_types（操作列表）；services.search_service（SearchQuery / Condition）。
+【依赖】core.field_types（操作列表）；core.query（SearchQuery / Condition）。
 【被谁调用】ui.main_window（“高级过滤”按钮）。
 """
 
@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, 
 from ..core.field_types import OP_EMPTY, OP_LABELS, OP_NOT_EMPTY, get_type
 from ..core.models import READ_STATUS
 from ..services.app_context import AppContext
-from ..services.search_service import Condition, SearchQuery
+from ..core.query import Condition, SearchQuery
 
 
 class _ConditionRow(QWidget):

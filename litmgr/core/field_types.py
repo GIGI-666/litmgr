@@ -64,6 +64,32 @@ class FieldType:
         """对比窗口里用于判断“两篇论文该字段是否相同”的规范文本。"""
         return " ".join(value_text.split()).casefold()
 
+    def matches(self, op: str, value_text: str, value_json: Any, operand: str) -> bool:
+        """字段条件判断：该字段的值是否满足“op operand”。
+
+        基类实现通用操作（为空/不为空/包含/等于/大于/小于）；类型有特殊规则就覆盖
+        （如标签的“含有标签”、数字的数值比较）。不认识的操作返回 True（等于不过滤）。
+        """
+        text = value_text.strip()
+        if op == OP_EMPTY:
+            return not text
+        if op == OP_NOT_EMPTY:
+            return bool(text)
+        if op == OP_CONTAINS:
+            return operand.strip().casefold() in text.casefold()
+        if op == OP_EQUALS:
+            return self.compare_text(text, value_json) == self.compare_text(operand, None)
+        if op in (OP_GT, OP_LT):
+            return self._order(op, text, operand)
+        return True
+
+    def _order(self, op: str, text: str, operand: str) -> bool:
+        """大于/小于：默认按规范化后的文本比较（日期规范化后可直接按字典序）。"""
+        if not text:
+            return False
+        norm, _ = self.parse(operand)
+        return text > norm if op == OP_GT else text < norm
+
 
 class TextType(FieldType):
     name = "text"
@@ -102,8 +128,34 @@ class TagsType(FieldType):
                 items.append(part)
         return "、".join(items), (items or None)
 
+    def matches(self, op, value_text, value_json, operand):
+        if op == OP_HAS:
+            items = value_json if isinstance(value_json, list) else [value_text.strip()]
+            needle = operand.strip().casefold()
+            return any(needle == str(i).casefold() for i in items if i)
+        return super().matches(op, value_text, value_json, operand)
 
-class NumberType(FieldType):
+
+def _to_float(s: str) -> float | None:
+    try:
+        return float(s)
+    except (TypeError, ValueError):
+        return None
+
+
+class _NumericOrderMixin:
+    """数字/星级：大于、小于按数值比较（任一边不是数字时退回文本比较）。"""
+
+    def _order(self, op: str, text: str, operand: str) -> bool:
+        if not text:
+            return False
+        a, b = _to_float(text), _to_float(operand)
+        if a is not None and b is not None:
+            return a > b if op == OP_GT else a < b
+        return FieldType._order(self, op, text, operand)
+
+
+class NumberType(_NumericOrderMixin, FieldType):
     name = "number"
     label = "数字"
     ops = (OP_EQUALS, OP_GT, OP_LT, OP_EMPTY, OP_NOT_EMPTY)
@@ -152,7 +204,7 @@ class DateType(FieldType):
         return value_json if value_json else "9999-" + value_text
 
 
-class RatingType(FieldType):
+class RatingType(_NumericOrderMixin, FieldType):
     name = "rating"
     label = "星级(0-5)"
     ops = (OP_EQUALS, OP_GT, OP_LT, OP_EMPTY, OP_NOT_EMPTY)

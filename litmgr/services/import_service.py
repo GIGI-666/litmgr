@@ -11,7 +11,8 @@
       “新建字段”会以标签原文作为字段名，同样自动记住。
     - 重复论文（arXiv 号或标题相同）默认跳过，用户可改成仍然导入。
     - 任何一篇出错不影响其他篇，错误汇总在 ImportResult.errors。
-【依赖】importers.*、services.field_service / paper_service、storage.log_repo / organize_repo。
+【依赖】importers.*、services.field_service / paper_service / file_service / pending_service /
+    organize_service（只通过服务，不直接碰仓库）。
 【被谁调用】ui.import_wizard。
 【扩展点】新增导入来源（如 BibTeX）：写一个新 importer 产出同样的 ImportPlan 即可复用 execute。
 """
@@ -28,10 +29,11 @@ from ..core.models import (KIND_ATTACHMENT, KIND_CARD, KIND_PDF, KIND_TRANSLATIO
 from ..core.textutil import normalize_label
 from ..importers.card_parser import ParsedCard, parse_card_text, read_text_file
 from ..importers.file_pairing import PairGroup, pair_files
-from ..storage.log_repo import LogRepo
-from ..storage.organize_repo import OrganizeRepo
 from .field_service import FieldService
+from .file_service import FileService
+from .organize_service import OrganizeService
 from .paper_service import PaperService
+from .pending_service import PendingService
 
 _ARXIV_NUM = re.compile(r"(\d{4}\.\d{4,5})")
 
@@ -100,12 +102,13 @@ def _arxiv_of(text: str) -> str:
 
 
 class ImportService:
-    def __init__(self, fields: FieldService, papers: PaperService, log_repo: LogRepo,
-                 organize_repo: OrganizeRepo, events: EventBus) -> None:
+    def __init__(self, fields: FieldService, papers: PaperService, files: FileService,
+                 pending: PendingService, organize: OrganizeService, events: EventBus) -> None:
         self.fields = fields
         self.papers = papers
-        self.log = log_repo
-        self.organize = organize_repo
+        self.files = files
+        self.pending = pending
+        self.organize = organize
         self.events = events
 
     # ---------- 第一步：生成导入计划 ----------
@@ -196,11 +199,11 @@ class ImportService:
                     pid = self._import_one(item, plan, decisions, resolved, title_f, arxiv_f,
                                            created)
                     if collection_id:
-                        self.organize.add_to_collection(pid, collection_id)
+                        self.organize.add_to_collection([pid], collection_id, publish=False)
                 result.created.append(pid)
             except Exception as e:  # noqa: BLE001 - 单篇失败不能拖垮整批
                 for pid in created:
-                    self.papers.discard_files_dir(pid)
+                    self.files.discard_dir(pid)
                 result.errors.append(f"{item.title or item.group.title_hint}：{e}")
         self.events.publish(Events.LIBRARY_CHANGED)
         return result
@@ -272,34 +275,13 @@ class ImportService:
         created.append(pid)
         for label, content in pending:
             if content.strip():
-                self.log.add_pending(pid, label, content)
+                self.pending.add(pid, label, content)
         if g.card:
-            self.papers.add_file(pid, KIND_CARD, g.card.path, publish=False)
+            self.files.add(pid, KIND_CARD, g.card.path, publish=False)
         for f in g.pdfs:
-            self.papers.add_file(pid, KIND_PDF, f.path, subtype=f.subtype, publish=False)
+            self.files.add(pid, KIND_PDF, f.path, subtype=f.subtype, publish=False)
         for f in g.translations:
-            self.papers.add_file(pid, KIND_TRANSLATION, f.path, publish=False)
+            self.files.add(pid, KIND_TRANSLATION, f.path, publish=False)
         for f in g.attachments:
-            self.papers.add_file(pid, KIND_ATTACHMENT, f.path, subtype=f.subtype, publish=False)
+            self.files.add(pid, KIND_ATTACHMENT, f.path, subtype=f.subtype, publish=False)
         return pid
-
-    # ---------- 待归类内容 ----------
-    def list_pending(self, paper_id: int | None = None):
-        """某篇论文（或全部）尚未归类的导入内容。"""
-        return self.log.list_pending(paper_id)
-
-    def assign_pending(self, pending_id: int, field_id: int) -> None:
-        """把一条待归类内容并入某个字段（追加到该字段已有内容之后）。"""
-        p = self.log.get_pending(pending_id)
-        if not p:
-            return
-        old = self.papers.papers.get_value(p.paper_id, field_id).text
-        self.papers.set_field(p.paper_id, field_id, (old + "\n" + p.content).strip())
-        self.log.delete_pending(pending_id)
-        self.events.publish(Events.PAPER_CHANGED, paper_id=p.paper_id)
-
-    def discard_pending(self, pending_id: int) -> None:
-        p = self.log.get_pending(pending_id)
-        self.log.delete_pending(pending_id)
-        if p:
-            self.events.publish(Events.PAPER_CHANGED, paper_id=p.paper_id)
