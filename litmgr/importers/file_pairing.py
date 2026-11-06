@@ -103,15 +103,23 @@ def classify(path: Path) -> FileInfo:
 def collect_files(paths: list[Path]) -> list[Path]:
     """展开用户选择的文件/文件夹（文件夹递归，忽略隐藏文件与 .obsidian 等点目录）。"""
     out: list[Path] = []
+    seen: set[Path] = set()   # 同一文件可能同时被“文件夹”和“文件”选中，只保留一份
+
+    def add(f: Path) -> None:
+        key = f.resolve()
+        if key not in seen:
+            seen.add(key)
+            out.append(f)
+
     for p in paths:
         p = Path(p)
         if p.is_dir():
             for f in sorted(p.rglob("*")):
                 if f.is_file() and not any(part.startswith(".") for part in f.relative_to(p).parts):
                     if f.stat().st_size > 0:
-                        out.append(f)
+                        add(f)
         elif p.is_file():
-            out.append(p)
+            add(p)
     return out
 
 

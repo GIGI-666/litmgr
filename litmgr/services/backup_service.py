@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
 import time
 from datetime import datetime
@@ -24,6 +25,9 @@ from ..core.events import EventBus, Events
 from ..storage.database import Database
 from ..storage.library_fs import LibraryFS
 from .paper_service import PaperService
+
+
+_AUTO_NAME = re.compile(r"litmgr_\d{8}_\d{6}\.db")   # 自动备份的文件名（无标签后缀）
 
 
 class BackupService:
@@ -57,7 +61,9 @@ class BackupService:
         if self.papers.count() == 0 and not backups:
             return None   # 空库不必备份
         path = self.backup_now()
-        for old in self.list_backups()[keep:]:
+        # 只清理纯时间戳命名的自动备份；带标签的（手动、恢复前、迁移前快照）一律保留
+        autos = [b for b in self.list_backups() if _AUTO_NAME.fullmatch(b.name)]
+        for old in autos[keep:]:
             old.unlink(missing_ok=True)
         return path
 

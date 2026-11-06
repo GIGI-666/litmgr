@@ -18,12 +18,15 @@
 from __future__ import annotations
 
 from ..core.field_types import get_type
-from ..core.models import FieldDef, Paper
+from ..core.models import READ_STATUS, FieldDef, Paper
 from ..core.query import Condition, SearchQuery
 from ..storage.organize_repo import OrganizeRepo
 from ..storage.search_repo import SearchRepo
 from .field_service import FieldService
 from .paper_service import PaperService
+
+# 阅读状态按“阅读进度”排序（未读 < 在读 < 已读 < 精读），而不是按英文 key 的字母序
+_STATUS_ORDER = {k: i for i, k in enumerate(READ_STATUS)}
 
 
 class SearchService:
@@ -107,7 +110,7 @@ class SearchService:
             "id": lambda p: p.id,
             "updated": lambda p: p.updated_at,
             "title": lambda p: p.title.casefold(),
-            "status": lambda p: p.read_status,
+            "status": lambda p: _STATUS_ORDER.get(p.read_status, len(_STATUS_ORDER)),
             "rating": lambda p: p.rating,
         }.get(key, lambda p: p.id)
         return sorted(papers, key=keyfn, reverse=q.sort_desc)

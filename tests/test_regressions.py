@@ -180,3 +180,70 @@ def test_reindex_all_is_fast(ctx):
     ctx.papers.reindex_all()
     assert time.time() - t < 5          # 修复前（每条语句一次提交）这个规模要慢得多
     assert title is not None
+
+
+# ---------- 第五轮：复查中确认的问题 ----------
+def test_undo_last_skips_deleted_field(ctx):
+    """永久删除字段后，其历史记录不应让“撤销上一次”卡死。"""
+    t = _title(ctx)
+    f = ctx.fields.add("临时字段", "text")
+    p = ctx.papers.create({t.id: "T"})
+    ctx.papers.set_field(p, t.id, "T2")
+    ctx.papers.set_field(p, f.id, "x")
+    ctx.fields.archive(f.id)
+    ctx.fields.delete_permanently(f.id)
+    e = ctx.history.undo_last()
+    assert e is not None and e.field_id == t.id
+    assert ctx.papers.get(p).title == "T"
+
+
+def test_status_sort_follows_progress(ctx):
+    from litmgr.core.query import SearchQuery
+    t = _title(ctx)
+    for i, st in enumerate(["deep", "unread", "read", "reading"]):
+        ctx.papers.set_status(ctx.papers.create({t.id: f"S{i}"}), st)
+    res = ctx.search.run(SearchQuery(sort_key="status", sort_desc=False))
+    assert [p.read_status for p in res] == ["unread", "reading", "read", "deep"]
+
+
+def test_collect_files_dedupes_folder_and_file(tmp_path):
+    from litmgr.importers.file_pairing import pair_files
+    d = tmp_path / "src"
+    d.mkdir()
+    (d / "Foo Bar2406.pdf").write_bytes(b"%PDF-1")
+    groups = pair_files([d, d / "Foo Bar2406.pdf"])
+    assert len(groups) == 1 and len(groups[0].pdfs) == 1
+
+
+def test_detail_window_keeps_typing_on_library_changed(app, ctx):
+    from litmgr.core.events import Events
+    from litmgr.ui.window_manager import WindowManager
+    f = next(x for x in ctx.fields.list() if x.type == "longtext")
+    p = ctx.papers.create({_title(ctx).id: "T"})
+    win = WindowManager(ctx).open_detail(p)
+    win.activateWindow()
+    ed = win.form.editors[f.id]
+    ed.edit.setFocus()
+    app.processEvents()
+    QTest.keyClicks(ed.edit, "typing")
+    ctx.events.publish(Events.LIBRARY_CHANGED)
+    assert win.form.editors[f.id].text() == "typing"
+    win.close()
+
+
+def test_auto_backup_prune_keeps_labeled(ctx):
+    t = _title(ctx)
+    ctx.papers.create({t.id: "T"})
+    d = ctx.fs.backups_dir
+    for i in range(5):
+        (d / f"litmgr_2026010{i + 1}_000000.db").write_bytes(b"x")
+    keep_files = [d / "litmgr_20250101_000000_premigrate_v2.db", d / "litmgr_20250101_000001_manual.db"]
+    for k in keep_files:
+        k.write_bytes(b"x")
+    old = time.time() - 48 * 3600
+    for p in d.glob("litmgr_*.db"):
+        os.utime(p, (old, old))
+    ctx.backup.auto_backup(keep=2)
+    assert all(k.exists() for k in keep_files)
+    autos = [p for p in d.glob("litmgr_*.db") if p.name.count("_") == 2]
+    assert len(autos) == 2

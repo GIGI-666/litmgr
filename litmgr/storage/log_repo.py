@@ -45,6 +45,7 @@ class LogRepo:
     def last_undoable(self) -> ChangeLogEntry | None:
         r = self.db.query_one(
             "SELECT * FROM change_log WHERE undone=0 AND field_id IS NOT NULL "
+            "AND field_id IN (SELECT id FROM field_def) "   # 字段已被永久删除的记录无法撤销，跳过
             "ORDER BY id DESC LIMIT 1")
         return _entry(r) if r else None
 

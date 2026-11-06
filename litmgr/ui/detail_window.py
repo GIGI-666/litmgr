@@ -160,7 +160,7 @@ class DetailWindow(EventSubscriberMixin, QMainWindow):
             self.close()
             return
         self._refresh_header()
-        self.form.rebuild()
+        self.form.refresh()   # 不重建：字段定义变化另有 FIELDS_CHANGED；重建会丢掉正在输入的内容
         self.file_panel.refresh()
         self.note_panel.refresh()
         self.history_panel.refresh()
