@@ -22,6 +22,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable
 
 from ..core.events import EventBus, Events
 from ..core.models import (KIND_ATTACHMENT, KIND_CARD, KIND_PDF, KIND_TRANSLATION,
@@ -130,6 +131,8 @@ class ImportService:
                     parsed = parse_card_text(read_text_file(g.card.path), lookup)
                 except OSError as e:
                     warnings.append(f"卡片读取失败：{e}")
+            if g.fuzzy:
+                warnings.append("部分文件按标题相似度并入，请核对是否确为同一篇")
             if len(g.cards) > 1:
                 warnings.append("同一论文有多个卡片文件，只导入第一个")
             if not g.card:
@@ -181,14 +184,19 @@ class ImportService:
 
     # ---------- 第二步：执行导入 ----------
     def execute(self, plan: ImportPlan, decisions: dict[str, LabelDecision] | None = None,
-                collection_id: int | None = None) -> ImportResult:
+                collection_id: int | None = None,
+                progress: Callable[[int, int, str], None] | None = None) -> ImportResult:
+        """执行导入。progress(已处理篇数, 总篇数, 当前标题) 用于界面显示进度（可不传）。"""
         decisions = decisions or {}
         result = ImportResult()
         resolved = self._resolve_decisions(plan, decisions)
 
         title_f = self.fields.by_role(ROLE_TITLE)
         arxiv_f = self.fields.by_role(ROLE_ARXIV)
-        for item in plan.items:
+        total = len(plan.items)
+        for n, item in enumerate(plan.items):
+            if progress:
+                progress(n, total, item.title or item.group.title_hint)
             if item.action != "import":
                 result.skipped += 1
                 continue
@@ -205,6 +213,8 @@ class ImportService:
                 for pid in created:
                     self.files.discard_dir(pid)
                 result.errors.append(f"{item.title or item.group.title_hint}：{e}")
+        if progress:
+            progress(total, total, "")
         self.events.publish(Events.LIBRARY_CHANGED)
         return result
 

@@ -44,18 +44,28 @@ class AppConfig:
         if path.exists():
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
+                if not isinstance(data, dict):
+                    raise ValueError("配置文件顶层不是对象")
                 known = {k: v for k, v in data.items() if k in cls.__dataclass_fields__}
-                return cls(**known)
-            except (OSError, ValueError):
+                cfg = cls(**known)
+                # 字段类型不对（手改坏了）时，逐项回退为默认值，免得后面使用时报错
+                defaults = cls()
+                for name in cls.__dataclass_fields__:
+                    if not isinstance(getattr(cfg, name), type(getattr(defaults, name))):
+                        setattr(cfg, name, getattr(defaults, name))
+                return cfg
+            except (OSError, ValueError, TypeError):
                 pass  # 配置损坏时回退默认值，不阻止启动
         return cls()
 
     def save(self) -> None:
+        """先写临时文件再替换，写到一半崩溃也不会损坏原配置。"""
         d = config_dir()
         d.mkdir(parents=True, exist_ok=True)
-        (d / "config.json").write_text(
-            json.dumps(asdict(self), ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        target = d / "config.json"
+        tmp = d / "config.json.tmp"
+        tmp.write_text(json.dumps(asdict(self), ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(tmp, target)
 
     def remember_library(self, path: str) -> None:
         """记录当前文献库并维护最近使用列表。"""

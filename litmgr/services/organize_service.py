@@ -15,8 +15,8 @@ import sqlite3
 from ..core.errors import DuplicateError, ValidationError
 from ..core.events import EventBus, Events
 from ..core.models import Collection, SavedView, Tag
-from ..storage.organize_repo import OrganizeRepo
 from ..core.query import SearchQuery
+from ..storage.organize_repo import OrganizeRepo
 
 
 class OrganizeService:
@@ -68,8 +68,8 @@ class OrganizeService:
 
     def delete_tag(self, tag_id: int) -> None:
         self.repo.delete_tag(tag_id)
+        # 主窗口与详情窗口都订阅 ORGANIZE_CHANGED（刷新侧栏、列表、标签条），不必整库刷新
         self.events.publish(Events.ORGANIZE_CHANGED)
-        self.events.publish(Events.LIBRARY_CHANGED)
 
     # ---------- 分组 ----------
     def collections(self) -> list[Collection]:

@@ -53,3 +53,7 @@ class FileRepo:
 
     def delete(self, file_id: int) -> None:
         self.db.execute("DELETE FROM paper_file WHERE id=?", (file_id,))
+
+    def all_rel_paths(self) -> set[str]:
+        """数据库里登记过的所有库内相对路径（用来找出多余文件）。"""
+        return {r["rel_path"] for r in self.db.query("SELECT rel_path FROM paper_file")}

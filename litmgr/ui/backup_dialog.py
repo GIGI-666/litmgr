@@ -30,6 +30,7 @@ class BackupDialog(QDialog):
         self.list = QListWidget()
         lay.addWidget(self.list, 1)
         add_buttons(lay, [("立即备份", self.backup), ("从选中的备份恢复", self.restore),
+                          ("检查多余文件", self.clean_orphans),
                           ("打开备份文件夹", lambda: open_path(ctx.fs.backups_dir))], stretch=False)
         self.refresh()
 
@@ -58,3 +59,20 @@ class BackupDialog(QDialog):
             self.ctx.backup.restore(it.data(Qt.UserRole))
             self.refresh()
             QMessageBox.information(self, "完成", "已恢复。")
+            self.clean_orphans(quiet=True)
+
+    @guarded
+    def clean_orphans(self, quiet: bool = False) -> None:
+        """找出文献库里数据库没登记的文件（恢复旧备份后常会出现），确认后删除。"""
+        orphans = self.ctx.files.find_orphans()
+        if not orphans:
+            if not quiet:      # 用户主动点按钮时才提示“没有”
+                QMessageBox.information(self, "检查多余文件", "没有发现多余文件。")
+            return
+        size = sum(p.stat().st_size for p in orphans if p.exists()) / 1024 / 1024
+        if QMessageBox.question(
+                self, "发现多余文件",
+                f"文献库里有 {len(orphans)} 个文件（约 {size:.1f} MB）没有登记在数据库中，\n"
+                "多半是恢复旧备份后遗留的。删除它们？（删除后不可恢复）") == QMessageBox.Yes:
+            n = self.ctx.files.delete_orphans(orphans)
+            QMessageBox.information(self, "完成", f"已删除 {n} 个多余文件。")

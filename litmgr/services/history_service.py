@@ -35,8 +35,9 @@ class HistoryService:
             raise ValidationError("这条修改已经撤销过了")
         if e.field_id is None:
             raise ValidationError("这条记录不支持撤销")
-        self.papers.set_field(e.paper_id, e.field_id, e.old_value, log=False)
-        self.log.mark_undone(e.id)
+        with self.papers.transaction():   # 恢复旧值与标记“已撤销”要么都成功，要么都不做
+            self.papers.set_field(e.paper_id, e.field_id, e.old_value, log=False)
+            self.log.mark_undone(e.id)
         return e
 
     def undo_last(self) -> ChangeLogEntry | None:

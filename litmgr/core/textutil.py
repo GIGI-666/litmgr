@@ -17,6 +17,9 @@ import re
 _WS = re.compile(r"\s+")
 _BAD_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|\r\n\t]+')
 
+_RESERVED_NAMES = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)),
+                   *(f"LPT{i}" for i in range(1, 10))}
+
 # 链接结束于空白或中英文常见分隔符，避免把后面的标点吞进去
 URL_RE = re.compile(r"https?://[^\s，,；;）)]+")
 
@@ -28,7 +31,10 @@ def normalize_label(s: str) -> str:
 
 def safe_filename(s: str, limit: int = 80, default: str = "未命名") -> str:
     """去掉文件名里的非法字符（换成下划线），截断到 limit 个字符；结果为空时用 default。"""
-    return _BAD_FILENAME_CHARS.sub("_", s).strip(" .")[:limit] or default
+    name = _BAD_FILENAME_CHARS.sub("_", s).strip(" .")[:limit].strip(" .") or default
+    if name.split(".")[0].upper() in _RESERVED_NAMES:   # CON、NUL、COM1… 在 Windows 上不能作文件名
+        name = "_" + name
+    return name
 
 
 def decode_text(data: bytes) -> str:

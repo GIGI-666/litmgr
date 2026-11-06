@@ -255,7 +255,7 @@ class MainWindow(EventSubscriberMixin, QMainWindow):
 
     @guarded
     def open_filter(self) -> None:
-        dlg = FilterDialog(self, self.ctx, self.query)
+        dlg = FilterDialog(self, self.ctx, self.query, lock_status=self.nav_tuple[0] == "status")
         if dlg.exec():
             dlg.apply_to(self.query)
             self.refresh()
@@ -305,7 +305,8 @@ class MainWindow(EventSubscriberMixin, QMainWindow):
         self.table.set_papers(papers)
         total = self.ctx.papers.count()
         self.count_label.setText(f"显示 {len(papers)} / 共 {total} 篇")
-        n_cond = len(self.query.conditions) + bool(self.query.read_status) + bool(self.query.min_rating)
+        status_in_filter = bool(self.query.read_status) and self.nav_tuple[0] != "status"   # 侧栏选了状态时，这里的状态不生效
+        n_cond = len(self.query.conditions) + status_in_filter + bool(self.query.min_rating)
         self.filter_btn.setText(f"高级过滤…（{n_cond}）" if n_cond else "高级过滤…")
         # 选中项的预览/按钮状态已由 table.set_papers 发出的 selectionIdsChanged 更新，这里不必重复
 

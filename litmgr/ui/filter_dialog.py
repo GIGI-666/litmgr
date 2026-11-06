@@ -14,8 +14,8 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, 
 
 from ..core.field_types import OP_EMPTY, OP_LABELS, OP_NOT_EMPTY, get_type
 from ..core.models import READ_STATUS
-from ..services.app_context import AppContext
 from ..core.query import Condition, SearchQuery
+from ..services.app_context import AppContext
 
 
 class _ConditionRow(QWidget):
@@ -63,7 +63,9 @@ class _ConditionRow(QWidget):
 
 
 class FilterDialog(QDialog):
-    def __init__(self, parent, ctx: AppContext, query: SearchQuery) -> None:
+    def __init__(self, parent, ctx: AppContext, query: SearchQuery, *,
+                 lock_status: bool = False) -> None:
+        """lock_status=True：左侧已选了某个阅读状态，这里的“阅读状态”不可再改（否则会被覆盖而无效）。"""
         super().__init__(parent)
         self.ctx = ctx
         self.setWindowTitle("高级过滤")
@@ -83,6 +85,9 @@ class FilterDialog(QDialog):
         for k, v in READ_STATUS.items():
             self.status.addItem(v, k)
         self.status.setCurrentIndex(max(self.status.findData(query.read_status), 0))
+        if lock_status:
+            self.status.setEnabled(False)
+            self.status.setToolTip("已在左侧选择了阅读状态，请先在左侧切回“全部论文”再设置这里")
         self.rating = QComboBox()
         self.rating.addItem("不限", 0)
         for n in range(1, 6):
@@ -112,8 +117,10 @@ class FilterDialog(QDialog):
             w = self.rows_box.takeAt(0).widget()
             if w:
                 w.deleteLater()
-        self.status.setCurrentIndex(0)
+        if self.status.isEnabled():
+            self.status.setCurrentIndex(0)
         self.rating.setCurrentIndex(0)
+        self.archived.setChecked(False)
 
     def apply_to(self, query: SearchQuery) -> None:
         """把对话框里的设置写回 query。"""
@@ -123,6 +130,7 @@ class FilterDialog(QDialog):
             if isinstance(w, _ConditionRow) and (c := w.condition()):
                 conds.append(c)
         query.conditions = conds
-        query.read_status = self.status.currentData()
+        if self.status.isEnabled():
+            query.read_status = self.status.currentData()
         query.min_rating = self.rating.currentData()
         query.include_archived = self.archived.isChecked()

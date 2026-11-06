@@ -15,7 +15,7 @@ import sys
 import traceback
 from pathlib import Path
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QLockFile, QTimer
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from . import APP_NAME
@@ -102,6 +102,13 @@ def main(argv: list[str] | None = None) -> int:
     config.remember_library(str(library))
     config.save()
 
+    # 单实例保护：同一个文献库同时只允许一个程序打开（各程序的界面不会互相同步，容易混乱）。
+    # 程序异常退出遗留的锁文件，QLockFile 会自动判断为失效并接管。
+    lock = QLockFile(str(library / ".litmgr.lock"))
+    if not lock.tryLock(200):
+        QMessageBox.warning(None, APP_NAME, "这个文献库已经在另一个窗口中打开了。\n请切换到已打开的程序窗口。")
+        return 0
+
     ctx = AppContext(library)
     try:
         if config.auto_backup:
@@ -115,6 +122,7 @@ def main(argv: list[str] | None = None) -> int:
     code = app.exec()
     _release_prewarm()
     ctx.close()
+    lock.unlock()
     return code
 
 

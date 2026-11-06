@@ -50,6 +50,7 @@ class PairGroup:
     """属于同一篇论文的一组文件。"""
 
     key: str
+    fuzzy: bool = False     # 有文件是按“标题相似”而不是“标题相同”并进来的（提醒用户核对）
     title_hint: str = ""
     arxiv_hint: str = ""
     cards: list[FileInfo] = field(default_factory=list)
@@ -133,6 +134,8 @@ def pair_files(paths: list[Path]) -> list[PairGroup]:
             info.title_hint = f.stem
         key = _find_group_key(groups, info.title_key)
         g = groups.setdefault(key, PairGroup(key=key))
+        if key != info.title_key:
+            g.fuzzy = True
         if not g.title_hint or len(info.title_hint) > len(g.title_hint):
             g.title_hint = info.title_hint
         g.arxiv_hint = g.arxiv_hint or info.arxiv_hint
@@ -146,8 +149,14 @@ def _find_group_key(groups: dict[str, PairGroup], key: str) -> str:
     if key in groups:
         return key
     best, best_ratio = key, 0.0
+    sm = difflib.SequenceMatcher(None)
+    sm.set_seq2(key)          # seq2 的预处理只做一次，对每个已有分组复用
     for k in groups:
-        r = difflib.SequenceMatcher(None, k, key).ratio()
+        sm.set_seq1(k)
+        # 先用便宜的上界过滤：长度悬殊或字符组成差太多的，不可能达到阈值
+        if sm.real_quick_ratio() < SIMILARITY or sm.quick_ratio() < SIMILARITY:
+            continue
+        r = sm.ratio()
         if r > best_ratio:
             best, best_ratio = k, r
     return best if best_ratio >= SIMILARITY else key

@@ -92,6 +92,7 @@ class CompareWindow(EventSubscriberMixin, QMainWindow):
         self.ctx, self.windows = ctx, windows
         self.paper_ids = list(paper_ids)
         self._populating = False
+        self._known_fields: set[int] = set()   # 已经出现过的字段 id；新出现的字段默认勾选
         self.setAttribute(Qt.WA_DeleteOnClose)
         self.setWindowTitle("论文对比")
         self.resize(1500, 900)
@@ -167,15 +168,16 @@ class CompareWindow(EventSubscriberMixin, QMainWindow):
         checked = {self.field_list.item(i).data(Qt.UserRole)
                    for i in range(self.field_list.count())
                    if self.field_list.item(i).checkState() == Qt.Checked}
-        first = self.field_list.count() == 0
         self.field_list.blockSignals(True)
         self.field_list.clear()
         for f in self.ctx.fields.list():
             it = QListWidgetItem(f.name)
             it.setData(Qt.UserRole, f.id)
             it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
-            it.setCheckState(Qt.Checked if (first or f.id in checked) else Qt.Unchecked)
+            it.setCheckState(Qt.Checked if (f.id not in self._known_fields or f.id in checked)
+                             else Qt.Unchecked)
             self.field_list.addItem(it)
+            self._known_fields.add(f.id)
         self.field_list.blockSignals(False)
 
     def _check_all(self, on: bool) -> None:

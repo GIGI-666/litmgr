@@ -83,6 +83,24 @@ class FileService:
         for f in self.files.list_for_paper(paper_id, KIND_TRANSLATION):
             self.index_translation(paper_id, f.id, f.rel_path)
 
+    # ---------- 多余文件 ----------
+    def find_orphans(self) -> list[Path]:
+        """找出文献库 papers/ 下“数据库里没有登记”的文件（例如恢复旧备份后遗留的文件）。"""
+        known = self.files.all_rel_paths()
+        return [p for p, rel in self.fs.iter_library_files() if rel not in known]
+
+    def delete_orphans(self, paths: list[Path]) -> int:
+        """删除 find_orphans 找到的文件，并清理空目录。返回实际删除的个数。"""
+        n = 0
+        for p in paths:
+            try:
+                p.unlink()
+                n += 1
+            except OSError:
+                pass
+        self.fs.prune_empty_dirs()
+        return n
+
     def discard_dir(self, paper_id: int) -> None:
         """删除某论文在文献库里的文件夹（删除论文、导入失败回滚后清理已复制文件用）。"""
         self.fs.remove_paper_dir(paper_id)

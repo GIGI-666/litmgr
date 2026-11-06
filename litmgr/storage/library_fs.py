@@ -67,14 +67,32 @@ class LibraryFS:
         target_dir = self.papers_dir / str(paper_id) / KIND_DIRS[kind]
         target_dir.mkdir(parents=True, exist_ok=True)
         target = target_dir / f"{stem}_{digest[:8]}{src.suffix.lower()}"
-        if not target.exists():
-            shutil.copy2(src, target)
+        # 目标已存在时只有大小一致才复用；否则可能是上次复制中断留下的半截文件，重新复制
+        if not target.exists() or target.stat().st_size != src.stat().st_size:
+            tmp = target.with_name(target.name + ".part")
+            shutil.copy2(src, tmp)
+            tmp.replace(target)    # 先复制到临时名再改名：中断时不会留下看似完整的半截文件
         return target.relative_to(self.root).as_posix(), digest
 
     def remove_file(self, rel_path: str) -> None:
         p = self.abs_path(rel_path)
         if p.exists():
             p.unlink()
+
+    def iter_library_files(self):
+        """遍历 papers/ 下的所有文件，产出 (绝对路径, 库内相对路径)。"""
+        for p in self.papers_dir.rglob("*"):
+            if p.is_file():
+                yield p, p.relative_to(self.root).as_posix()
+
+    def prune_empty_dirs(self) -> None:
+        """删除 papers/ 下已经空了的子目录（自底向上）。"""
+        for d in sorted((x for x in self.papers_dir.rglob("*") if x.is_dir()),
+                        key=lambda x: len(x.parts), reverse=True):
+            try:
+                d.rmdir()
+            except OSError:
+                pass    # 非空就保留
 
     def remove_paper_dir(self, paper_id: int) -> None:
         d = self.papers_dir / str(paper_id)

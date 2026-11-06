@@ -17,8 +17,8 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import (QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel, QListWidget,
-                               QPushButton, QStackedWidget, QTableWidget, QTableWidgetItem,
+from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel, QListWidget,
+                               QProgressDialog, QPushButton, QStackedWidget, QTableWidget, QTableWidgetItem,
                                QTextBrowser, QVBoxLayout, QWidget)
 
 from ..core.field_types import FIELD_TYPES
@@ -252,6 +252,27 @@ class ImportWizard(QDialog):
         self.stack.setCurrentIndex(max(0, i - 1))
         self._update_nav()
 
+    def _run_import(self):
+        """带进度条地执行导入（导入在界面线程里跑，每处理一篇刷新一次界面，避免“假死”）。"""
+        total = len(self.plan.items)
+        dlg = QProgressDialog("正在导入…", None, 0, max(total, 1), self)
+        dlg.setWindowTitle("导入中")
+        dlg.setWindowModality(Qt.WindowModal)
+        dlg.setMinimumDuration(0)
+        dlg.setAutoClose(False)
+        dlg.setAutoReset(False)
+
+        def on_progress(done: int, count: int, title: str) -> None:
+            dlg.setValue(done)
+            dlg.setLabelText(f"正在导入 {done + 1}/{count}：{title[:40]}" if title else "完成")
+            QApplication.processEvents()
+
+        try:
+            return self.ctx.imports.execute(self.plan, self._collect_decisions(),
+                                            self.collection_box.currentData(), progress=on_progress)
+        finally:
+            dlg.close()
+
     @guarded
     def _next(self) -> None:
         i = self.stack.currentIndex()
@@ -267,12 +288,7 @@ class ImportWizard(QDialog):
             self._fill_labels()
             self.stack.setCurrentIndex(2)
         elif i == 2:
-            QGuiApplication.setOverrideCursor(Qt.WaitCursor)
-            try:
-                res = self.ctx.imports.execute(self.plan, self._collect_decisions(),
-                                               self.collection_box.currentData())
-            finally:
-                QGuiApplication.restoreOverrideCursor()
+            res = self._run_import()
             lines = [f"<h3>导入完成</h3><p>成功导入 <b>{len(res.created)}</b> 篇，"
                      f"跳过 <b>{res.skipped}</b> 篇。</p>"]
             if res.errors:

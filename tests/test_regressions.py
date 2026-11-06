@@ -15,7 +15,7 @@ import pytest
 
 pytest.importorskip("PySide6")
 
-from PySide6.QtCore import QMarginsF  # noqa: E402
+from PySide6.QtCore import QMarginsF, Qt  # noqa: E402
 from PySide6.QtGui import QPageLayout, QPageSize, QPainter, QPdfWriter  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import QApplication, QLabel  # noqa: E402
@@ -247,3 +247,103 @@ def test_auto_backup_prune_keeps_labeled(ctx):
     assert all(k.exists() for k in keep_files)
     autos = [p for p in d.glob("litmgr_*.db") if p.name.count("_") == 2]
     assert len(autos) == 2
+
+
+# ---------- 第六轮：健壮性与体验 ----------
+def test_safe_filename_reserved_names():
+    from litmgr.core.textutil import safe_filename
+    assert safe_filename("CON") != "CON" and safe_filename("nul.txt").startswith("_")
+    assert safe_filename("abc") == "abc"
+
+
+def test_config_atomic_save_and_tolerant_load(tmp_path, monkeypatch):
+    from litmgr.core.config import AppConfig
+    monkeypatch.setenv("LITMGR_HOME", str(tmp_path))
+    c = AppConfig()
+    c.remember_library("X")
+    c.save()
+    assert not (tmp_path / "config.json.tmp").exists()
+    assert AppConfig.load().library_path == "X"
+    (tmp_path / "config.json").write_text("[1,2]", encoding="utf-8")
+    assert AppConfig.load().library_path == ""
+    (tmp_path / "config.json").write_text('{"ui_state": 5, "backup_keep": "x"}', encoding="utf-8")
+    cfg = AppConfig.load()
+    assert cfg.ui_state == {} and cfg.backup_keep == 10
+
+
+def test_add_file_recopies_truncated_target(ctx, tmp_path):
+    src = tmp_path / "a.pdf"
+    src.write_bytes(b"%PDF-full-content")
+    pid = ctx.papers.create({_title(ctx).id: "T"})
+    f = ctx.files.add(pid, "pdf", src)
+    target = ctx.fs.abs_path(f.rel_path)
+    target.write_bytes(b"%PDF")        # 模拟复制中断留下的半截文件
+    ctx.fs.add_file(pid, "pdf", src)
+    assert target.read_bytes() == src.read_bytes()
+
+
+def test_find_and_delete_orphans(ctx, tmp_path):
+    src = tmp_path / "a.pdf"
+    src.write_bytes(b"%PDF-1")
+    pid = ctx.papers.create({_title(ctx).id: "T"})
+    ctx.files.add(pid, "pdf", src)
+    stray = ctx.fs.papers_dir / "999" / "pdf" / "x.pdf"
+    stray.parent.mkdir(parents=True)
+    stray.write_bytes(b"x")
+    assert ctx.files.find_orphans() == [stray]
+    assert ctx.files.delete_orphans([stray]) == 1
+    assert not (ctx.fs.papers_dir / "999").exists()
+    assert ctx.files.find_orphans() == []
+
+
+def test_undo_is_atomic(ctx, monkeypatch):
+    t = _title(ctx)
+    p = ctx.papers.create({t.id: "A"})
+    ctx.papers.set_field(p, t.id, "B")
+    e = ctx.history.of_paper(p)[0]
+    monkeypatch.setattr(ctx.history.log, "mark_undone",
+                        lambda _i: (_ for _ in ()).throw(RuntimeError("boom")))
+    with pytest.raises(RuntimeError):
+        ctx.history.undo(e.id)
+    assert ctx.papers.get(p).title == "B"      # 值也一并回滚
+
+
+def test_fuzzy_pairing_flagged(tmp_path):
+    from litmgr.importers.file_pairing import pair_files
+    for n in ("Attention Is All You Need2017.pdf", "Attention Is All You Need.2017论文卡片.txt",
+              "Totally Different Paper2020.pdf"):
+        (tmp_path / n).write_bytes(b"x")
+    gs = pair_files([tmp_path])
+    assert len(gs) == 2
+
+
+def test_import_progress_callback(ctx, tmp_path):
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "Foo Net2406.pdf").write_bytes(b"%PDF-1")
+    plan = ctx.imports.build_plan([src])
+    calls = []
+    ctx.imports.execute(plan, progress=lambda d, n, t: calls.append((d, n)))
+    assert calls[0] == (0, 1) and calls[-1] == (1, 1)
+
+
+def test_compare_new_field_checked_and_filter_lock(app, ctx):
+    from litmgr.ui.compare_window import CompareWindow
+    from litmgr.ui.filter_dialog import FilterDialog
+    from litmgr.core.query import SearchQuery
+    p = ctx.papers.create({_title(ctx).id: "T"})
+    w = CompareWindow(ctx, None, [p])
+    ctx.fields.add("新加字段X", "text")
+    items = {w.field_list.item(i).text(): w.field_list.item(i).checkState()
+             for i in range(w.field_list.count())}
+    assert items["新加字段X"] == Qt.Checked
+    w.close()
+    q = SearchQuery(read_status="read", include_archived=True)
+    dlg = FilterDialog(None, ctx, q, lock_status=True)
+    assert not dlg.status.isEnabled()
+    dlg._clear()
+    assert not dlg.archived.isChecked()
+    q2 = SearchQuery(read_status="read")
+    dlg.apply_to(q2)
+    assert q2.read_status == "read"      # 锁定时不改写状态
+

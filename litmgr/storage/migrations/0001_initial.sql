@@ -102,7 +102,7 @@ CREATE TABLE pending_content (
 );
 
 -- 全文索引：trigram 分词，支持中文子串检索（>=3 字符）；更短的查询用 LIKE 回退
--- source: 'field' 表示来自字段值；'file:<id>' 表示来自某个翻译文件正文
+-- source: 'field' 字段值；'file' 翻译文件正文；'note' 阅读笔记（rowid 规则见 storage/search_repo.py）
 CREATE VIRTUAL TABLE search_index USING fts5(
     paper_id UNINDEXED,
     field_id UNINDEXED,

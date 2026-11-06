@@ -80,6 +80,7 @@ class ExportService:
         target = Path(target)
         titles = [p.title for p in table.papers]
         if fmt == "md":
+            titles = [t.replace("|", "\\|") for t in titles]   # 标题里的竖线会破坏表格
             lines = ["| 字段 | " + " | ".join(titles) + " |",
                      "|---|" + "---|" * len(titles)]
             for r in table.rows:
