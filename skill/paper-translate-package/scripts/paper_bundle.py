@@ -62,17 +62,15 @@ def read_fields(path: Path) -> list[str]:
 
 
 def safe_stem(value: str) -> str:
-    """清理 Windows 文件名并避免被 litmgr 把前缀自身误识别为后缀。"""
-    value = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", value).strip(" .")[:100].rstrip(" .")
+    """仅清理系统不允许的字符，不缩写标题或追加编号；过长时明确报错。"""
+    value = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "_", value).strip(" .")
     if not value:
         raise ValueError("文件名前缀不能为空")
     if re.fullmatch(r"CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9]", value.split(".")[0], re.I):
         value = "_" + value
-    if value.endswith(("论文详细内容", "论文卡片", "补充材料", "附录", "翻译")):
-        value += "_paper"
-    # 纯编号会被导入器剥离成空标题，要求标题前缀可独立识别。
-    if not re.sub(r"(?:\d{4}\.\d{4,5}|\d{4})(?:v\d+)?$", "", value).strip(" _-"):
-        value = "论文_" + value
+    # 最长文件名还需容纳“论文卡片.txt”；不能为通过长度检查而悄悄截断真实标题。
+    if len(value.encode("utf-16-le")) // 2 + len("论文卡片.txt") > 255:
+        raise ValueError("完整中文标题超过文件名长度限制，请确认合适的命名方式，不会自动缩写")
     return value
 
 
@@ -110,6 +108,8 @@ def load_work(path: str) -> tuple[Path, dict]:
     data = load_json(work / "manifest.json")
     if data.get("version") != 1 or safe_stem(data["stem"]) != data["stem"]:
         raise ValueError("不支持的工作清单版本或无效文件名前缀")
+    if data.get("naming") == "translated-title" and data["stem"] != safe_stem(data["title_zh"]):
+        raise ValueError("文件名前缀与已确认的论文中文标题不一致")
     return work, data
 
 
@@ -125,18 +125,21 @@ def init(args) -> dict:
     """快照必需输入和可选补充材料；只建工作目录，不发布半成品。"""
     if bool(args.supplement) != bool(args.supplement_pages):
         raise ValueError("补充材料文件与其真实页数必须一起提供；没有则两者均省略")
+    title_zh = args.title_zh.strip()
+    if not title_zh:
+        raise ValueError("中文标题不能为空")
+    stem = safe_stem(title_zh)
+    if args.stem is not None and args.stem != stem:
+        raise ValueError("文件名前缀必须等于完整中文译名，不能沿用原 PDF 文件名、缩写或追加编号")
     fields = read_fields(Path(args.template))
     root = Path(args.output_root).resolve()
     root.mkdir(parents=True, exist_ok=True)
-    stem = safe_stem(args.stem)
     work = root / f".{stem}.work"
     if any(p.exists() for p in (work, root / stem, root / f"{stem}.zip")):
-        raise ValueError("同名前缀已有工作目录或成品，请续作现有工作或换一个前缀；不会覆盖")
-    data = {"version": 1, "stem": stem, "title_zh": args.title_zh.strip(),
+        raise ValueError("已有同名工作目录或成品，请续作现有工作或换一个输出目录；不会覆盖")
+    data = {"version": 1, "naming": "translated-title", "stem": stem, "title_zh": title_zh,
             "title_en": (args.title_en or "").strip(), "output_root": str(root),
             "fields": fields, "sources": {}, "parts": [], "card": None}
-    if not data["title_zh"]:
-        raise ValueError("中文标题不能为空")
     with tempfile.TemporaryDirectory(prefix=".paper-init-", dir=root) as temporary:
         stage = Path(temporary) / "job"
         (stage / "sources").mkdir(parents=True)
@@ -369,7 +372,7 @@ def main() -> int:
     p.add_argument("--template", required=True)
     p.add_argument("--title-zh", required=True)
     p.add_argument("--title-en", default="")
-    p.add_argument("--stem", required=True)
+    p.add_argument("--stem", help="可省略；如提供，须严格等于从 --title-zh 得到的安全文件名")
     p.add_argument("--output-root", required=True)
     p.set_defaults(handler=init)
     p = commands.add_parser("add-part", help="登记或修订一段真实翻译的源页码与内容")

@@ -16,7 +16,7 @@ $env:QTWEBENGINE_CHROMIUM_FLAGS='--no-sandbox --disable-gpu'
 .\.venv\Scripts\python.exe -m pyflakes litmgr tests
 ```
 
-准备分享时的应用及分享工具测试基线为 **56 项通过**，导入测试使用固定临时小样，不依赖原维护者的私人目录。Qt 离屏平台不指定字体目录可能无法加载字体，导致测试 PDF 没有可搜索文字；不要把这个环境问题误当搜索功能回归。
+当前应用、分享工具及技能命名测试基线为 **60 项通过**，导入测试使用固定临时小样，不依赖原维护者的私人目录。Qt 离屏平台不指定字体目录可能无法加载字体，导致测试 PDF 没有可搜索文字；不要把这个环境问题误当搜索功能回归。
 
 上述环境变量只用于当前测试终端。测试后新开一个 PowerShell 运行真实 GUI，或移除这些设置：
 
@@ -88,6 +88,7 @@ shared_library/  交接的完整文献库快照
 - `references/litmgr-format.md`：导入兼容约定。
 - `assets/card-template.txt`：初始模板快照；实际使用优先读当次模板。
 - `scripts/paper_bundle.py`：标准库工具，负责快照、分段登记、卡片和最终文件包，不调用模型 API。
+- 新任务名称由 `--title-zh` 自动生成，使用从 PDF 正文题名翻译出的完整中文标题；输入下载名不参与命名，也不额外加 arXiv 编号或年月。保留翻译 MD 和卡片 TXT 格式；`--stem` 可省略，提供不同前缀会被拒绝。
 - `agents/openai.yaml`：显示名称与默认请求。
 
 修改源码后重新生成 ZIP：

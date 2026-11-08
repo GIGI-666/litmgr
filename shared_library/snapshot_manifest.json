@@ -1,5 +1,5 @@
 {
-  "captured_at": "2026-11-08T18:52:33.129040+08:00",
+  "captured_at": "2026-11-08T19:17:40.410699+08:00",
   "schema_version": 4,
   "counts": {
     "paper": 4,
@@ -53,7 +53,7 @@
     },
     "db/litmgr.db": {
       "bytes": 2248704,
-      "sha256": "5c3b17eeadaf316488997124f2f25a973466739431c8c6a4579271526664281d"
+      "sha256": "6f2662dd0ec241674b2f9096a7f4f6fa5b50ae66ac6b1c8d7bc822e21c71a887"
     },
     "papers/1/card/基于Transformer的端到端目标检测2005论文卡片_0136a92e.txt": {
       "bytes": 3220,

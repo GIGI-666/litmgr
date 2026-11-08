@@ -25,7 +25,7 @@ description: 将学术论文 PDF、可选补充材料 PDF 和当次论文卡片 
 先读 [references/translation-rules.md](references/translation-rules.md)，完整继承用户的翻译质量要求。再读 [references/litmgr-format.md](references/litmgr-format.md)，确认文件命名、卡片格式和导入边界。
 
 1. 检查 PDF 可读性、标题、作者、正文与补充材料的真实物理页数（从 1 开始，不是印刷页码）、章节、表图、公式和参考文献范围。使用提取文本加必要页面视觉核对；双栏顺序、表格、公式、扫描页必须看页面，不能盲贴乱码。若加密或关键页面无法读取，报告具体页码，保留进度，不能拿猜测补全。
-2. 选统一文件名前缀：简洁中文标题加已核实的 arXiv 号或年月；无法核实时不用虚构编号。复制后的 PDF 可统一改名用于配对，但字节必须与输入一致。确定输出位置：用户指定优先，否则用当前可交付的输出目录；在本机无其他约定时可用正文 PDF 同级的“待导入文献”。
+2. 从正文 PDF 首页的真实题名（必要时结合正文核实）取得论文英文标题，并给出完整、准确的中文翻译。原 PDF 可能叫 arXiv 编号、下载编号或任意名称，不能把原文件名当作题名。将中文译名作为 `--title-zh` 传给脚本，由脚本自动作为目录、ZIP 和全部成品的统一前缀；不简写，不额外加 arXiv 号、年月或批次号。文件分别为“中文标题.pdf”“中文标题补充材料.pdf”（如有）、“中文标题翻译.md”“中文标题论文卡片.txt”。PDF 副本字节须与输入一致。确定输出位置：用户指定优先，否则用当前可交付的输出目录；在本机无其他约定时可用正文 PDF 同级的“待导入文献”。
 3. 用 `scripts/paper_bundle.py init` 建立工作目录并快照原 PDF 和当次模板。脚本只用 Python 标准库，**不负责翻译**。先用 `--help` 查看参数。正文页数、补充材料页数必须来自真实检查，不为让校验通过而调整。
 4. 按原顺序逐段翻译，在工作目录内写多个 UTF-8 `.md` 小段，再用 `add-part` 登记来源与物理页码。正文先于补充材料；段间按原文锚点衔接。每段应读完其对应源页再完成，允许同一源页被相邻段共同覆盖，但要核对跨页句、表格和脚注无重复无遗漏。
 5. 大论文可以用多次工具调用持续写入，不受聊天单条回复篇幅限制。不要用脚本或空壳函数假造翻译，也不要把整篇原文换成摘要。聊天中给简短进度；文件里不放“下次继续”或聊天解释。若受当前会话限制必须暂停，保留工作目录，报告源文件、已完成范围及下一处锚点；恢复后先 `status` 并核对已有段落。未完成时不发布正式成品包。
@@ -56,13 +56,13 @@ description: 将学术论文 PDF、可选补充材料 PDF 和当次论文卡片 
 路径均为示例，替换为当前实际文件；含中文参数时优先使用 Python `subprocess.run([...])` 参数数组，避免 Windows shell 编码和引号问题。
 
 ```text
-python scripts/paper_bundle.py init --main main.pdf --main-pages 17 --supplement supplement.pdf --supplement-pages 10 --template template.txt --title-zh 中文标题 --title-en EnglishTitle --stem 中文标题2005.12872 --output-root output
-python scripts/paper_bundle.py add-part --work output/.中文标题2005.12872.work --source main --start 1 --end 3 --file part001.md
-python scripts/paper_bundle.py add-part --work output/.中文标题2005.12872.work --source supplement --start 1 --end 2 --file supp001.md
-python scripts/paper_bundle.py write-card --work output/.中文标题2005.12872.work --values-json values.json
-python scripts/paper_bundle.py status --work output/.中文标题2005.12872.work
-python scripts/paper_bundle.py validate --work output/.中文标题2005.12872.work
-python scripts/paper_bundle.py finalize --work output/.中文标题2005.12872.work --reviewed
+python scripts/paper_bundle.py init --main 2005.12872v1.pdf --main-pages 17 --supplement download-supplement.pdf --supplement-pages 10 --template template.txt --title-zh 基于Transformer的端到端目标检测 --title-en EnglishTitle --output-root output
+python scripts/paper_bundle.py add-part --work output/.基于Transformer的端到端目标检测.work --source main --start 1 --end 3 --file part001.md
+python scripts/paper_bundle.py add-part --work output/.基于Transformer的端到端目标检测.work --source supplement --start 1 --end 2 --file supp001.md
+python scripts/paper_bundle.py write-card --work output/.基于Transformer的端到端目标检测.work --values-json values.json
+python scripts/paper_bundle.py status --work output/.基于Transformer的端到端目标检测.work
+python scripts/paper_bundle.py validate --work output/.基于Transformer的端到端目标检测.work
+python scripts/paper_bundle.py finalize --work output/.基于Transformer的端到端目标检测.work --reviewed
 ```
 
 无独立补充材料时省略两个 supplement 参数及其分段；`finalize` 必须等所有源页译完。修订已登记的段落，使用同一登记返回的 `--id` 替换该段，随后重新校验。详细参数以脚本 `--help` 为准。

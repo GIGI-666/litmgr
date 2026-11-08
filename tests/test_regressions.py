@@ -548,3 +548,89 @@ def test_skill_package_contains_editable_files_without_cache(tmp_path):
     with pytest.raises(ValueError, match="源码目录外"):
         package(root, root / "nested.zip")
 
+
+# ---------- 翻译技能：由正文标题中文译名统一命名 ----------
+@pytest.mark.parametrize("title,has_supplement", [
+    ("基于Transformer的端到端目标检测", True),
+    ("基于Transformer的端到端目标检测", False),
+    ("面向文档的机器翻译", True),
+])
+def test_paper_bundle_names_use_translated_title(tmp_path, title, has_supplement):
+    """任意下载文件名均输出中文题名，正文/补充/MD/TXT 可精确配为一篇。"""
+    import json
+    from pathlib import Path
+    import subprocess
+    import sys
+    import zipfile
+    from litmgr.core.textutil import normalize_label
+    from litmgr.importers.card_parser import parse_card_text
+    from litmgr.importers.file_pairing import pair_files
+
+    script = Path(__file__).resolve().parents[1] / "skill/paper-translate-package/scripts/paper_bundle.py"
+
+    def run(*args):
+        result = subprocess.run([sys.executable, str(script), *map(str, args)],
+                                capture_output=True, encoding="utf-8", check=True)
+        return json.loads(result.stdout)
+
+    main = tmp_path / "2005.12872v1.pdf"
+    main.write_bytes(b"%PDF-1.4 synthetic original main")
+    supplement = tmp_path / "download-supplement-final.pdf"
+    supplement.write_bytes(b"%PDF-1.4 synthetic original supplement")
+    template = tmp_path / "template.txt"
+    template.write_text("中文标题\n核心思想/关键创新\n", encoding="utf-8")
+    output = tmp_path / "output"
+    args = ["init", "--main", main, "--main-pages", "1", "--template", template,
+            "--title-zh", title, "--title-en", "English title", "--output-root", output]
+    if has_supplement:
+        args.extend(["--supplement", supplement, "--supplement-pages", "1"])
+    # 明确拒绝把旧下载文件名当作前缀，且不会创建该任务。
+    wrong = subprocess.run([sys.executable, str(script), *map(str, args), "--stem", main.stem],
+                           capture_output=True, encoding="utf-8")
+    assert wrong.returncode != 0 and not output.exists()
+    work = Path(run(*args)["work"])
+    assert work.name == f".{title}.work"
+    part = tmp_path / "part.md"
+    part.write_text("### 摘要\n\n这是用于验证文件打包的合成译文。\n", encoding="utf-8")
+    run("add-part", "--work", work, "--source", "main", "--start", "1", "--end", "1", "--file", part)
+    if has_supplement:
+        run("add-part", "--work", work, "--source", "supplement", "--start", "1", "--end", "1", "--file", part)
+    values = tmp_path / "values.json"
+    values.write_text(json.dumps({"中文标题": title, "核心思想/关键创新": "合成卡片内容"},
+                                 ensure_ascii=False), encoding="utf-8")
+    run("write-card", "--work", work, "--values-json", values)
+    result = run("finalize", "--work", work, "--reviewed")
+    folder = Path(result["folder"])
+    expected = {f"{title}.pdf", f"{title}翻译.md", f"{title}论文卡片.txt"}
+    if has_supplement:
+        expected.add(f"{title}补充材料.pdf")
+        assert (folder / f"{title}补充材料.pdf").read_bytes() == supplement.read_bytes()
+    assert folder.name == title and {p.name for p in folder.iterdir()} == expected
+    assert (folder / f"{title}.pdf").read_bytes() == main.read_bytes()
+    assert Path(result["zip"]).name == f"{title}.zip"
+    with zipfile.ZipFile(result["zip"]) as archive:
+        assert set(archive.namelist()) == {f"{title}/{name}" for name in expected}
+        assert archive.testzip() is None
+    groups = pair_files([folder])
+    assert len(groups) == 1 and not groups[0].fuzzy
+    assert len(groups[0].translations) == 1 and len(groups[0].cards) == 1
+    assert {p.subtype for p in groups[0].pdfs} == ({"正文", "补充材料"} if has_supplement else {"正文"})
+    parsed = parse_card_text((folder / f"{title}论文卡片.txt").read_text(encoding="utf-8"),
+                             {normalize_label("中文标题"): 1, normalize_label("核心思想/关键创新"): 2})
+    assert parsed.known_text(1) == title and parsed.known_text(2) == "合成卡片内容"
+
+
+def test_paper_bundle_keeps_full_title_without_silent_shortening():
+    """长标题保留全文；超过文件系统上限时报告，不能悄悄缩写成另一标题。"""
+    import importlib.util
+    from pathlib import Path
+    script = Path(__file__).resolve().parents[1] / "skill/paper-translate-package/scripts/paper_bundle.py"
+    spec = importlib.util.spec_from_file_location("paper_bundle_naming", script)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    title = "完整论文标题" * 20
+    assert module.safe_stem(title) == title
+    assert module.safe_stem("视觉/语言：联合建模") == "视觉_语言：联合建模"
+    with pytest.raises(ValueError, match="长度限制"):
+        module.safe_stem("文" * 248)
+
