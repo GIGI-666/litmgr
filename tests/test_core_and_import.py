@@ -1,6 +1,6 @@
 """核心功能测试：字段类型、字段管理、卡片解析、文件配对、导入、检索、历史、备份。
 
-其中用到用户真实论文目录的测试，在目录不存在时自动跳过。
+导入小样由临时目录构造，不依赖原维护者机器上的论文目录或模板版本。
 """
 
 from pathlib import Path
@@ -14,8 +14,31 @@ from litmgr.services.app_context import AppContext
 from litmgr.services.import_service import ACT_NEW, LabelDecision
 from litmgr.services.search_service import Condition, SearchQuery
 
-REAL = Path(r"D:\2file\研究生2026.9.7\零散论文")
-needs_real = pytest.mark.skipif(not REAL.exists(), reason="真实论文目录不存在")
+@pytest.fixture
+def sample_papers(tmp_path: Path) -> Path:
+    """生成固定的四篇导入小样及空卡片，覆盖编号、未知标签和不同编号的补充材料。"""
+    root = tmp_path / "sources"
+    cards, translations = root / "论文卡片", root / "零散论文翻译"
+    cards.mkdir(parents=True)
+    translations.mkdir()
+    papers = [
+        ("RT-DocLayout2606.23344v1", "RT-DocLayout", "arXiv",
+         "研究问题：文档版面与阅读顺序\n当前发表状态：预印本\n"),
+        ("DETRs在实时目标检测中击败YOLOs2304.08069", "DETRs在实时目标检测中击败YOLOs", "CVPR",
+         "研究问题：实时目标检测\n"),
+        ("文档解析揭秘2504.12345", "文档解析揭秘", "arXiv", "（5）我的疑问：如何复现\n"),
+        ("测试论文2401", "测试论文", "示例会议", "研究问题：验证整体导入\n"),
+    ]
+    for stem, title, venue, extra in papers:
+        (cards / f"{stem}论文卡片.txt").write_text(
+            f"（1）中文标题：{title}\n论文所属会议/期刊：{venue}\n{extra}", encoding="utf-8")
+        (translations / f"{stem}翻译.md").write_text(
+            f"# {title}\n\n测试正文 Uncertainty-minimal。\n", encoding="utf-8")
+        (root / f"{stem}.pdf").write_bytes(b"%PDF-1.4\n% synthetic import fixture\n")
+    for stem in ("RT-DocLayout2609", "DETRs在实时目标检测中击败YOLOs2304"):
+        (root / f"{stem}补充材料.pdf").write_bytes(b"%PDF-1.4\n% synthetic supplement fixture\n")
+    (cards / "论文卡片模板.txt").write_text("中文标题：\n研究问题：\n", encoding="utf-8")
+    return root
 
 
 @pytest.fixture
@@ -74,10 +97,9 @@ def test_parse_multiline_and_numbered():
     assert by["第一条路线"].guess and by["第一条路线"].field_id is None
 
 
-@needs_real
-def test_parse_real_cards(ctx):
+def test_parse_sample_cards(ctx, sample_papers):
     lookup = ctx.fields.name_lookup()
-    d = REAL / "论文卡片"
+    d = sample_papers / "论文卡片"
     rt = parse_card_text(read_text_file(next(d.glob("RT-DocLayout*"))), lookup)
     labels = {e.label for e in rt.entries}
     assert "当前发表状态" in labels                              # 模板外字段 -> 未知标签
@@ -89,10 +111,9 @@ def test_parse_real_cards(ctx):
 
 
 # ---------- 文件配对 ----------
-@needs_real
-def test_pairing_real_files():
-    groups = pair_files([REAL / "论文卡片", REAL / "零散论文翻译"] +
-                        list(REAL.glob("*.pdf")))
+def test_pairing_sample_files(sample_papers):
+    groups = pair_files([sample_papers / "论文卡片", sample_papers / "零散论文翻译"] +
+                        list(sample_papers.glob("*.pdf")))
     rt = next(g for g in groups if "RT-DocLayout" in g.title_hint)
     assert rt.card and rt.translations
     assert {p.subtype for p in rt.pdfs} == {"正文", "补充材料"}   # 补充材料(编号不同)也能配上
@@ -101,10 +122,9 @@ def test_pairing_real_files():
 
 
 # ---------- 导入 + 检索 ----------
-@needs_real
-def test_import_and_search(ctx):
-    plan = ctx.imports.build_plan([REAL / "论文卡片", REAL / "零散论文翻译"] +
-                                  list(REAL.glob("*.pdf")))
+def test_import_and_search(ctx, sample_papers):
+    plan = ctx.imports.build_plan([sample_papers / "论文卡片", sample_papers / "零散论文翻译"] +
+                                  list(sample_papers.glob("*.pdf")))
     cards = [i for i in plan.items if i.parsed]
     assert len([i for i in cards if i.action == "import"]) == len(cards) - 1  # 只有空模板被跳过
     assert any("卡片内容全为空" in "".join(i.warnings) for i in cards)
@@ -117,7 +137,7 @@ def test_import_and_search(ctx):
     assert any(f.name == "当前发表状态" for f in ctx.fields.list())
 
     # 再导入一次：重复论文默认跳过
-    plan2 = ctx.imports.build_plan([REAL / "论文卡片"])
+    plan2 = ctx.imports.build_plan([sample_papers / "论文卡片"])
     assert all(i.action == "skip" for i in plan2.items if i.parsed)
 
     hits = ctx.search.run(SearchQuery(text="阅读顺序"))

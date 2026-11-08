@@ -1,0 +1,10 @@
+# 分享快照必须保留原始字节，避免跨平台检出改变翻译/卡片的换行和 SHA-256。
+shared_library/** -text whitespace=cr-at-eol
+shared_library/papers/** binary
+
+# 技能源码与发布 ZIP 内的文件内容保持一致。
+skill/paper-translate-package/** -text whitespace=cr-at-eol
+
+*.pdf binary
+*.db binary
+*.zip binary

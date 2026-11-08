@@ -3,15 +3,16 @@
 技能名称：论文翻译与卡片打包
 英文标识：paper-translate-package
 技能包：同目录下的 paper-translate-package.zip
-本机技能源码：C:/Users/GIGI/.codex/skills/paper-translate-package/
+可编辑技能源码：本仓库 skill/paper-translate-package/ 文件夹
 
 一、如何添加到桌面 GPT
 
 在支持技能的 ChatGPT 桌面端打开 Skills（部分界面位于“插件/Plugins → Skills”），
 选择“创建/Create → 从电脑上传/Upload from your computer”，导入同目录技能 ZIP。
-如果当前入口要求选择本地技能目录，使用本机技能源码目录。
+如果当前入口要求选择本地技能目录，使用上面的可编辑技能源码目录。
 界面及可用性依账号、工作区和软件版本而异；本地创建文件不等于已经替你上传至账号。
-在当前 Codex 环境，本技能已写入个人技能目录；新聊天可尝试 $paper-translate-package。
+Codex 用户可把该技能目录复制到个人技能目录，再在新聊天中选择 $paper-translate-package。
+复制前如已有同名技能，先确认要保留或更新哪个版本。
 
 官方说明：
 https://help.openai.com/en/articles/20001066-skills-in-chatgpt

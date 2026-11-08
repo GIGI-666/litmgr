@@ -1,0 +1,35 @@
+一句话总结论文主要内容：RT-DocLayout 基于 RT-DETR 构建了一个仅 33M 参数的统一端到端文档版面分析框架，在单个 Query-based Transformer 解码器中联合完成版面元素分类、边界框检测、像素级 Mask 分割和阅读顺序预测，并通过物理空间感知数据增强显著提升模型对弯曲、倾斜、透视等真实场景文档畸变的鲁棒性。
+英文标题：RT-DocLayout: Real-Time End-to-End Document Layout Analysis with Reading Order in the Wild
+中文标题：RT-DocLayout：面向真实场景、融合阅读顺序的实时端到端文档版面分析
+论文类型：方法型研究论文
+研究领域：文档智能，文档版面分析，计算机视觉，目标检测，图像分割，阅读顺序预测，文档解析
+当前发表状态：已发表
+论文所属会议/期刊：ECCV 2026（European Conference on Computer Vision 2026）
+arXiv编号：2606.23344
+论文首次发布日期：2026-06-22
+当前PDF版本：v1
+当前PDF版本发布日期：2026-06-22
+arXiv分类：cs.CV —— Computer Vision and Pattern Recognition（计算机视觉与模式识别
+页数：16
+正式代码地址：https://github.com/PaddlePaddle/PaddleOCR/blob/main/docs/version3.x/module_usage/layout_analysis.md
+https://huggingface.co/PaddlePaddle/PP-DocLayoutV3
+作者名称：Cheng Cui, Tingquan Gao, Xueqing Wang, Changda Zhou, Hongen Liu, Ting Sun, Yubo Zhang, Zelun Zhang, Jiaxuan Liu, Manhui Lin, Yue Zhang, Suyin Liang, Yiqing Xiang, Yi Liu。
+作者所属机构：百度飞桨（PaddlePaddle）团队，百度公司
+研究问题：如何构建一个既快速、又能够精确描述文档几何形状，同时还能直接预测阅读顺序，并能够适应真实拍摄场景中各种几何畸变的统一文档版面分析模型？版面元素定位问题、复杂几何形变问题、阅读顺序问题。
+此论文以前的方法的问题：
+多阶段流水线的误差传播问题。
+矩形框无法贴合真实几何形变的版面元素。
+大型VLM版面分析成本较高。
+核心思想/关键创新：利用同一个 Query-based Transformer Decoder，同时执行分类、检测、像素级分割、阅读顺序预测。
+像素级分割。
+利用 Decoder 中的 Object Query预测阅读顺序。
+数据增强，模拟真实世界中文档的形变。
+方法流程图/论文主图流程图：RT-DETR Backbone->Encoder->Query-based Transformer Decoder->Object Queries->类别预测，边界框预测，像素级分割->Refined Queries-> Pairwise Order Scorer->
+N × N 关系矩阵->Voting-based Ranking->Reading Order->分类，边界框，像素级掩码，阅读顺序。
+训练数据：自建，约38000张文档图像，共人工标注25类版面元素，每个元素除了标注位置和类别，还标注了阅读顺序。
+测试数据：OmniDocBench v1.5、Real5-OmniDocBench、
+指标：Overall、TextEdit、FormulaCDM、TableTEDS、Reading OrderEdit、FPS、Params
+主要结果：RT-DocLayout参数33M，推理速度132.1FPS，与 PaddleOCR-VL-1.5-0.9B 配合在OmniDocBench v1.5上overall得分94.50，在Real5-OmniDocBench上overall得分92.05，尤其在严重集合畸变场景具有较强的鲁棒性。
+实验/消融实验：验证了Mask提高了overall分数，使用Reading Order 联合训练RO降低，使用数据增强warp和skew提高
+局限性：训练数据未公开，训练过程未完整公开。Reading Order复杂度为O(N²)。Real5只覆盖有限的真实退化类型。目前预测的是线性的阅读顺序，但复杂文档可能存在更加丰富的语义结构。
+与我研究方向的关系和启发：

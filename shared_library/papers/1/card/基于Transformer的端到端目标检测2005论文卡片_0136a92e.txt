@@ -1,0 +1,28 @@
+一句话总结论文主要内容：DETR 将目标检测重新表述为一个端到端的集合预测问题，利用 Transformer 编码器—解码器 + 可学习 object queries + 匈牙利二分图匹配损失，直接并行输出类别和边界框，从而去掉传统检测器中的锚框、候选框分配规则和 NMS 等大量人工设计组件。
+英文标题：End-to-End Object Detection with Transformers
+中文标题：基于 Transformer 的端到端目标检测
+论文类型：计算机视觉 / 目标检测方向的方法类会议论文
+研究领域：计算机视觉、目标检测、Transformer、集合预测、全景分割
+当前发表状态：已正式发表
+论文所属会议/期刊：ECCV 2020
+arXiv编号：2005.12872
+论文首次发布日期：2020 年 5 月 26 日
+当前PDF版本：正式版
+当前PDF版本发布日期：2020 年 5 月 28 日
+arXiv分类：cs.CV
+页数：17+10
+正式代码地址：https://github.com/facebookresearch/detr
+作者名称：Nicolas Carion、Francisco Massa、Gabriel Synnaeve、Nicolas Usunier、Alexander Kirillov、Sergey Zagoruyko
+作者所属机构：Paris Dauphine University（巴黎多芬大学）、Facebook AI
+研究问题：目标检测能否不再依赖 anchors、proposals、人工正负样本分配规则和 NMS，而像机器翻译一样，直接把“图像 → 一组目标”作为一个真正的端到端集合预测问题来解决？
+此论文以前的方法的问题：两阶段检测器依赖 proposals，单阶段检测器依赖 anchors 或候选中心，最终还常要NMS。
+核心思想/关键创新：将目标检测定义为直接集合预测。使用匈牙利二分图匹配。使用Transformer。非自回归并行预测。
+方法流程图/论文主图流程图：输入图像->CNN Backbone（ResNet-50 / ResNet-101）提取二维特征->1*1卷积降低通道维度->将H*W特征展平为长度HW的序列->加入空间位置编码->Transformer Encoder进行全局自注意力建模->Transformer Decoder输入N个可学习Object Queries->每个 Query 与编码器特征进行交叉注意力并与其他 Queries 进行自注意力交互->共享 FFN Prediction Head->每个 Query 输出：
+类别概率 + 归一化边界框->训练时使用 Hungarian Matching 与真实目标做一对一匹配->计算分类损失+l1 loss+GloU loss->得到最终目标集合
+训练数据：主要使用 COCO 2017 train：118k张训练图像，同时具有目标检测边界框和全景分割标注，平均每张图像7个目标，单张图像最多63个目标。骨干网络 ResNet-50 / ResNet-101 使用 ImageNet 预训练权重进行初始化。对于全景分割实验，则使用 COCO 的 panoptic annotations，并同时建模 thing 和 stuff 类别。
+测试数据：COCO 2017 validation set：5k 张图像。全景分割部分还在 COCO test set 上进行了评估，并报告 46 PQ。
+指标：主要采用 COCO 标准指标
+主要结果：ResNet-50 DETR 达到 42.0 AP，大目标非常强，小目标明显弱。
+实验/消融实验：
+局限性：小目标性能差。训练收敛慢。高分辨率计算代价高。预测数量存在固定上限。训练和优化困难。
+与我研究方向的关系和启发：

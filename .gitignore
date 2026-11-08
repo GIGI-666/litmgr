@@ -3,8 +3,25 @@ __pycache__/
 *.pyc
 .pytest_cache/
 scripts/_shots/
-# ????????????????
-???/
+# 日常个人文献库不提交；分享数据仅使用下方明确允许的快照。
+文献库/
 *.db
 *.db-wal
 *.db-shm
+
+# 分享快照的主数据库和已有备份明确纳入版本管理。
+!shared_library/db/litmgr.db
+!shared_library/backups/*.db
+
+# 运行锁、日志、机器设置及临时产物不上传。
+*.db-journal
+.litmgr.lock
+*.log
+.env
+.env.*
+!.env.example
+.paper-init-*/
+.paper-final-*/
+*.zip.tmp
+.litmgr-snapshot-*/
+.skill-package-*/

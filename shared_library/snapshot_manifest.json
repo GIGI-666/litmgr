@@ -1,0 +1,112 @@
+{
+  "captured_at": "2026-11-08T18:41:05.688471+08:00",
+  "schema_version": 4,
+  "counts": {
+    "paper": 4,
+    "field_def": 27,
+    "field_group": 6,
+    "field_value": 40,
+    "paper_file": 13,
+    "note": 0,
+    "tag": 0,
+    "collection": 0,
+    "saved_view": 0,
+    "change_log": 1,
+    "pending_content": 0,
+    "reading_history": 3
+  },
+  "file_kinds": {
+    "card": 2,
+    "pdf": 7,
+    "translation": 4
+  },
+  "backup_count": 6,
+  "total_bytes": 41584242,
+  "files": {
+    "backups/litmgr_20261030_140343.db": {
+      "bytes": 630784,
+      "sha256": "200b32ab489f843cf4d01ba479759b3aff351ef1db04fb0b94f5309ecf6959d4"
+    },
+    "backups/litmgr_20261102_223653.db": {
+      "bytes": 1323008,
+      "sha256": "b00f160dbda943d12805114095fc05a190a1d9daefd69b60299f14642d218261"
+    },
+    "backups/litmgr_20261105_191245.db": {
+      "bytes": 1847296,
+      "sha256": "8b53273e690d7eae383f61ddf20bbc690dc8c188a41520108a44490b518eb4ad"
+    },
+    "backups/litmgr_20261106_222537_premigrate_v2.db": {
+      "bytes": 1847296,
+      "sha256": "fcc3270efe8e8308fdbbe9081a21e225e4625edfaf80828595b2d5a3f4475231"
+    },
+    "backups/litmgr_20261108_141741.db": {
+      "bytes": 1847296,
+      "sha256": "0f7c9cc1b63d22df8ff2c0840f462b266a510c9cb5d39d5580ecfccc95555486"
+    },
+    "backups/litmgr_20261108_152325_premigrate_v3.db": {
+      "bytes": 2248704,
+      "sha256": "3b2e859a7067290e402a46a31e30ef35057590743bd843897fabd323f3679da4"
+    },
+    "config.snapshot.json": {
+      "bytes": 333,
+      "sha256": "b5c4ca0112cc4aba481fd3fc8fc559e1df5dffa98a98916428c30f8c6a59efe0"
+    },
+    "db/litmgr.db": {
+      "bytes": 2248704,
+      "sha256": "1bed512164171ec5fcf841758d2991cb09addcfcafd1f4bb29e97d02cda887af"
+    },
+    "papers/1/card/基于Transformer的端到端目标检测2005论文卡片_0136a92e.txt": {
+      "bytes": 3220,
+      "sha256": "0136a92ec40a86aa8e29393608dbbaf423236fc89317a1aae055eaf3775dd3d9"
+    },
+    "papers/1/pdf/基于Transformer的端到端目标检测2005_cf016cbc.pdf": {
+      "bytes": 6083784,
+      "sha256": "cf016cbc2c80a6bc43ae0058d1824fba77630ddb7e4ac7224e6d0905a51356f8"
+    },
+    "papers/1/pdf/基于Transformer的端到端目标检测2005补充材料_fdd38bb3.pdf": {
+      "bytes": 1596175,
+      "sha256": "fdd38bb36139207804aac0991d210f9b7096867fcf74a5d27e888f3e31ff3460"
+    },
+    "papers/1/translation/基于Transformer的端到端目标检测2005翻译_96c65fd2.md": {
+      "bytes": 79165,
+      "sha256": "96c65fd2d0bcc02bc06f1e5dbab7d7fb4ed060c31fe9ec35c547512acb1b8783"
+    },
+    "papers/2/pdf/AD-GBC：一种用于基于 UNet 的医学图像分割的各向异性粒球跳跃连接优化模_21973c9c.pdf": {
+      "bytes": 1092996,
+      "sha256": "21973c9c12101b7e28fa31aa9a725c85fd73504c505c14c855f52fccf00c1efa"
+    },
+    "papers/2/pdf/AD-GBC：一种用于基于 UNet 的医学图像分割的各向异性粒球跳跃连接优化模_3d5c73b6.pdf": {
+      "bytes": 1136466,
+      "sha256": "3d5c73b6495dc3febf0a2c5875264b0f844cc6e3ce84d66d14e32fbe40e4daf2"
+    },
+    "papers/2/translation/AD-GBC：一种用于基于 UNet 的医学图像分割的各向异性粒球跳跃连接优化模_1e3f76bf.md": {
+      "bytes": 70873,
+      "sha256": "1e3f76bf96d315cad48af591cfd82a9663a97ea9ec2cd2572ee31844a503d656"
+    },
+    "papers/3/pdf/历史天文图表中的文本区域检测2608_dfb60e44.pdf": {
+      "bytes": 4667757,
+      "sha256": "dfb60e44ba543a955b8e81add4f2ec5ce0846272fa2f2702ec099d1f494dde86"
+    },
+    "papers/3/translation/历史天文图表中的文本区域检测2608翻译_44cbf7a3.md": {
+      "bytes": 62826,
+      "sha256": "44cbf7a384e002fd73626ac885e92d7cdaaff4f5f70bd6815d7645a8474e818f"
+    },
+    "papers/4/card/RT-DocLayout：面向真实场景、融合阅读顺序的实时端到端文档版面分析26_572635ce.txt": {
+      "bytes": 3643,
+      "sha256": "572635ce8521817d8c3252f0bb4dd072b66fc540046fea5227c37e58c4c447a5"
+    },
+    "papers/4/pdf/RT-DocLayout：面向真实场景、融合阅读顺序的实时端到端文档版面分析26_4a1ee182.pdf": {
+      "bytes": 7546624,
+      "sha256": "4a1ee18222bc92eab51f2977873968eac7a3e7f084ac851f837657de9eb44031"
+    },
+    "papers/4/pdf/RT-DocLayout：面向真实场景、融合阅读顺序的实时端到端文档版面分析26_66e7bb89.pdf": {
+      "bytes": 7201205,
+      "sha256": "66e7bb89c09d387b2604accefeb941b5ccc17cb2aead8cc805f0aac030e7a544"
+    },
+    "papers/4/translation/RT-DocLayout：面向真实场景、融合阅读顺序的实时端到端文档版面分析26_266eabe8.md": {
+      "bytes": 46087,
+      "sha256": "266eabe8cc2007e770945f5d84184e9b77cde522ded139a9eba10e47d8f1bb49"
+    }
+  },
+  "note": "数据库由 SQLite 在线备份生成；排除运行锁、WAL/SHM/journal及日志；配置保留启动偏好和窗口布局，清空本机文献库绝对路径。"
+}

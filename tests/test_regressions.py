@@ -505,3 +505,46 @@ def test_field_group_dialog_and_filtered_field_editor(app, ctx, monkeypatch):
         group_dialog.close()
         manager.close()
 
+
+# ---------- 分享工具：独立快照、原库保护及可分发技能 ----------
+def test_shared_snapshot_keeps_committed_data_and_excludes_runtime_files(ctx, tmp_path):
+    """来源使用 WAL 时也保留已提交内容，验证步骤本身不能把 WAL/SHM 放进快照。"""
+    from scripts.snapshot_library import snapshot
+    title = _title(ctx)
+    pid = ctx.papers.create({title.id: "分享论文"})
+    source = tmp_path / "paper.pdf"
+    source.write_bytes(b"%PDF-1.4 synthetic snapshot fixture")
+    file = ctx.files.add(pid, "pdf", source)
+    lock = ctx.library_path / ".litmgr.lock"
+    lock.write_text("running", encoding="utf-8")
+    destination = tmp_path / "shared"
+    report = snapshot(ctx.library_path, destination)
+    assert report["counts"]["paper"] == report["counts"]["paper_file"] == 1
+    assert (destination / file.rel_path).read_bytes() == source.read_bytes()
+    assert not any(p.name == ".litmgr.lock" or p.name.endswith(("-wal", "-shm", "-journal"))
+                   for p in destination.rglob("*"))
+    assert not any(n.endswith(("-wal", "-shm")) for n in report["files"])
+    assert lock.read_text(encoding="utf-8") == "running" and ctx.papers.get(pid).title == "分享论文"
+    with pytest.raises(ValueError, match="已存在"):
+        snapshot(ctx.library_path, destination)
+    with pytest.raises(ValueError, match="互不包含"):
+        snapshot(ctx.library_path, ctx.library_path / "nested")
+
+
+def test_skill_package_contains_editable_files_without_cache(tmp_path):
+    """重打包保留源文档字节，缓存不进入分发包，并拒绝输出回源码目录。"""
+    import zipfile
+    from scripts.package_skill import package
+    root = tmp_path / "test-skill"
+    (root / "scripts/__pycache__").mkdir(parents=True)
+    (root / "SKILL.md").write_text("技能说明", encoding="utf-8")
+    (root / "scripts/tool.py").write_text("print('ok')", encoding="utf-8")
+    (root / "scripts/__pycache__/tool.pyc").write_bytes(b"not for distribution")
+    archive = tmp_path / "skill.zip"
+    assert package(root, archive) == 2
+    with zipfile.ZipFile(archive) as packed:
+        assert set(packed.namelist()) == {"test-skill/SKILL.md", "test-skill/scripts/tool.py"}
+        assert packed.read("test-skill/SKILL.md") == (root / "SKILL.md").read_bytes()
+    with pytest.raises(ValueError, match="源码目录外"):
+        package(root, root / "nested.zip")
+
