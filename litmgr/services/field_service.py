@@ -6,6 +6,7 @@
     - 字段名查重（同时避免与别名冲突）
     - 改字段类型时，用新类型重新解析所有论文的该字段值（value_text 永不丢失）
     - 字段“归档”（软删除，可恢复）与“永久删除”
+    - 字段分组新建、改名、删除；删除分组保留其字段及论文内容
     - 提供“名称/别名 -> 字段”的查找表，供卡片导入识别字段
     - 首次创建文献库时写入默认的 25 个模板字段
 【依赖】storage.field_repo / paper_repo / search_repo；core.field_types / events。
@@ -89,11 +90,58 @@ class FieldService:
         return out
 
     def groups(self) -> list[str]:
-        seen: list[str] = []
-        for f in self.repo.list():
-            if f.group_name and f.group_name not in seen:
-                seen.append(f.group_name)
-        return seen
+        """列出所有已保存的分组，空分组也保留。"""
+        return self.repo.groups()
+
+    # ---------- 字段分组（与论文标签/分组无关） ----------
+    def _check_group_name(self, name: str, exclude: str | None = None) -> str:
+        name = (name or "").strip()
+        if not name:
+            raise ValidationError("分组名不能为空")
+        key = normalize_label(name)
+        if key == normalize_label("未分组"):
+            raise ValidationError("未分组是系统保留名称，请使用其他分组名")
+        if any(g != exclude and normalize_label(g) == key for g in self.groups()):
+            raise DuplicateError(f"已存在同名字段分组：{name}")
+        return name
+
+    def _require_group(self, name: str) -> None:
+        if name not in self.groups():
+            raise NotFoundError(f"字段分组不存在：{name}")
+
+    def _group_for_field(self, name: str) -> str:
+        """字段编辑允许直接输入新组名，同名写法统一到已有分组。"""
+        name = (name or "").strip()
+        if not name:
+            return ""
+        for group in self.groups():
+            if normalize_label(group) == normalize_label(name):
+                return group
+        return self._check_group_name(name)
+
+    def add_group(self, name: str) -> str:
+        """新建可独立保存的空分组，返回去除首尾空白后的名称。"""
+        name = self._check_group_name(name)
+        self.repo.ensure_group(name)
+        self.events.publish(Events.FIELDS_CHANGED)
+        return name
+
+    def rename_group(self, old_name: str, new_name: str) -> str:
+        """原子改组名并同步组内所有字段，不改变字段编号和论文内容。"""
+        self._require_group(old_name)
+        new_name = self._check_group_name(new_name, exclude=old_name)
+        if new_name != old_name:
+            with self.repo.db.transaction():
+                self.repo.rename_group(old_name, new_name)
+            self.events.publish(Events.FIELDS_CHANGED)
+        return new_name
+
+    def delete_group(self, name: str) -> None:
+        """删除分组，组内字段（含已归档字段）全部移到未分组。"""
+        self._require_group(name)
+        with self.repo.db.transaction():
+            self.repo.delete_group(name)
+        self.events.publish(Events.FIELDS_CHANGED)
 
     # ---------- 校验 ----------
     def _check_name(self, name: str, exclude_id: int | None = None) -> str:
@@ -119,10 +167,13 @@ class FieldService:
             show_in_list: bool = False, publish: bool = True) -> FieldDef:
         name = self._check_name(name)
         self._check_type(type)
+        group_name = self._group_for_field(group_name)
         f = FieldDef(id=0, name=name, type=type, options=list(options or []),
                      aliases=list(aliases or []), role=role, group_name=group_name,
                      sort_order=self.repo.max_sort_order() + 1, show_in_list=show_in_list)
-        f.id = self.repo.insert(f)
+        with self.repo.db.transaction():
+            self.repo.ensure_group(group_name)
+            f.id = self.repo.insert(f)
         if publish:
             self.events.publish(Events.FIELDS_CHANGED)
         return f
@@ -132,7 +183,9 @@ class FieldService:
         old = self.get(f.id)
         f.name = self._check_name(f.name, exclude_id=f.id)
         self._check_type(f.type)
+        f.group_name = self._group_for_field(f.group_name)
         with self.repo.db.transaction():       # 字段定义与所有论文的值要么一起改，要么都不改
+            self.repo.ensure_group(f.group_name)
             self.repo.update(f)
             if old.type != f.type:
                 self._reparse_values(f)

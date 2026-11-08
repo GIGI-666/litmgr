@@ -1,9 +1,10 @@
 """字段定义仓库（field_def 表）。
 
-【作用】读写“字段定义”：字段名、类型、候选项、别名、角色、分组、排序、是否归档。
+【作用】读写“字段定义”及独立的字段分组；空分组也可持久保存。
 【职责】只做数据读写；字段名查重、类型转换等业务规则在 services.field_service。
 【依赖】storage.database；core.models。
 【被谁调用】services.field_service、services.paper_service、importers（通过服务）。
+【扩展点】字段及分组的 SQL 操作集中于本仓库，跨记录变更由服务层组织事务。
 """
 
 from __future__ import annotations
@@ -65,3 +66,27 @@ class FieldRepo:
     def max_sort_order(self) -> int:
         r = self.db.query_one("SELECT COALESCE(MAX(sort_order), 0) AS m FROM field_def")
         return r["m"]
+
+    def groups(self) -> list[str]:
+        """按建立顺序列出分组，包含空分组及只有已归档字段的分组。"""
+        return [r["name"] for r in self.db.query(
+            "SELECT name FROM field_group ORDER BY sort_order, rowid")]
+
+    def ensure_group(self, name: str) -> None:
+        """确保具名分组存在；空字符串表示字段未分组，不建立记录。"""
+        if name:
+            self.db.execute(
+                "INSERT OR IGNORE INTO field_group(name, sort_order) "
+                "VALUES (?, (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM field_group))",
+                (name,))
+
+    def rename_group(self, old_name: str, new_name: str) -> None:
+        """改组名并同步所有字段（含已归档字段）；由调用方包裹事务。"""
+        self.db.execute("UPDATE field_group SET name = ? WHERE name = ?", (new_name, old_name))
+        self.db.execute("UPDATE field_def SET group_name = ? WHERE group_name = ?",
+                        (new_name, old_name))
+
+    def delete_group(self, name: str) -> None:
+        """移除分组并把组内字段设为未分组，保留字段和值；由调用方包裹事务。"""
+        self.db.execute("UPDATE field_def SET group_name = '' WHERE group_name = ?", (name,))
+        self.db.execute("DELETE FROM field_group WHERE name = ?", (name,))

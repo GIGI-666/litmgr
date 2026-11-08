@@ -65,7 +65,7 @@ class PaperFieldForm(QScrollArea):
 
         groups: dict[str, _CollapsibleGroup] = {}
         for f in self.ctx.fields.list():
-            title = f.group_name or "其他"
+            title = f.group_name or "未分组"
             g = groups.get(title)
             if g is None:
                 g = groups[title] = _CollapsibleGroup(title)

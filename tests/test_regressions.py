@@ -347,3 +347,161 @@ def test_compare_new_field_checked_and_filter_lock(app, ctx):
     dlg.apply_to(q2)
     assert q2.read_status == "read"      # 锁定时不改写状态
 
+
+# ---------- 字段分组：独立保存、迁移、同步和内容保护 ----------
+def test_empty_field_group_survives_restart(tmp_path):
+    """先建空分组，重启后仍可选择；字段编辑中直接输入的新分组也会保存。"""
+    path = tmp_path / "groups_lib"
+    c = AppContext(path)
+    try:
+        assert c.fields.groups() == ["概要", "基本信息", "内容", "实验", "我的思考"]
+        assert c.fields.add_group("  复现记录  ") == "复现记录"
+        f = c.fields.add("运行环境", group_name="代码复现")
+        assert f.group_name == "代码复现"
+    finally:
+        c.close()
+    c = AppContext(path)
+    try:
+        assert "复现记录" in c.fields.groups() and "代码复现" in c.fields.groups()
+        c.fields.delete_group("复现记录")
+        assert "复现记录" not in c.fields.groups()
+    finally:
+        c.close()
+
+
+def test_field_groups_rename_delete_keep_values_and_archived_fields(ctx):
+    """组改名及删除覆盖已归档字段；字段编号、顺序、内容和索引均保留。"""
+    from litmgr.core.events import Events
+    from litmgr.core.query import SearchQuery
+    active = ctx.fields.add("复现结果", group_name="复现")
+    archived = ctx.fields.add("旧复现记录", group_name="复现")
+    pid = ctx.papers.create({_title(ctx).id: "A", active.id: "复现成功", archived.id: "原始记录"})
+    ctx.fields.archive(archived.id)
+    order = [(f.id, f.sort_order) for f in ctx.fields.list(include_archived=True)]
+    events = []
+    ctx.events.subscribe(Events.FIELDS_CHANGED, lambda **_kw: events.append(True))
+    ctx.fields.rename_group("复现", "代码与复现")
+    assert ctx.fields.get(active.id).group_name == "代码与复现"
+    assert ctx.fields.get(archived.id).group_name == "代码与复现"
+    ctx.fields.delete_group("代码与复现")
+    assert ctx.fields.get(active.id).group_name == ctx.fields.get(archived.id).group_name == ""
+    assert ctx.fields.get(archived.id).archived
+    assert [(f.id, f.sort_order) for f in ctx.fields.list(include_archived=True)] == order
+    paper = ctx.papers.get(pid)
+    assert paper.text_of(active.id) == "复现成功" and paper.text_of(archived.id) == "原始记录"
+    assert [p.id for p in ctx.search.run(SearchQuery(text="复现成功"))] == [pid]
+    assert len(events) == 2
+
+
+def test_field_group_names_checked_and_field_moves(ctx):
+    """拒绝空名和重名；已有组的不同空白/大小写写法会归入同一组。"""
+    from litmgr.core.errors import DuplicateError, NotFoundError, ValidationError
+    for name in ("", "  ", "未分组"):
+        with pytest.raises(ValidationError):
+            ctx.fields.add_group(name)
+    ctx.fields.add_group("Code Notes")
+    with pytest.raises(DuplicateError):
+        ctx.fields.add_group(" codenotes ")
+    with pytest.raises(DuplicateError):
+        ctx.fields.rename_group("Code Notes", "概要")
+    with pytest.raises(ValidationError):
+        ctx.fields.rename_group("Code Notes", " ")
+    with pytest.raises(NotFoundError):
+        ctx.fields.delete_group("不存在")
+    field = ctx.fields.add("复现进度", group_name=" code notes ")
+    assert field.group_name == "Code Notes"
+    field.group_name = "实验"
+    ctx.fields.update(field)
+    assert ctx.fields.get(field.id).group_name == "实验"
+    assert "Code Notes" in ctx.fields.groups()  # 移走最后一个字段后仍保留空组
+
+
+@pytest.mark.parametrize("action", ["rename", "delete"])
+def test_field_group_changes_are_atomic(ctx, monkeypatch, action):
+    """改名/删除中途失败时，组名和字段归属必须一起回滚，且不发成功事件。"""
+    from litmgr.core.events import Events
+    field = ctx.fields.add("回滚字段", group_name="回滚分组")
+    events = []
+    ctx.events.subscribe(Events.FIELDS_CHANGED, lambda **_kw: events.append(True))
+    real_execute = ctx.db.execute
+
+    def failing_execute(sql, params=()):
+        if ((action == "rename" and sql.startswith("UPDATE field_def")) or
+                (action == "delete" and sql.startswith("DELETE FROM field_group"))):
+            raise RuntimeError("模拟分组操作中断")
+        return real_execute(sql, params)
+
+    monkeypatch.setattr(ctx.db, "execute", failing_execute)
+    with pytest.raises(RuntimeError):
+        if action == "rename":
+            ctx.fields.rename_group("回滚分组", "新分组")
+        else:
+            ctx.fields.delete_group("回滚分组")
+    assert "回滚分组" in ctx.fields.groups() and "新分组" not in ctx.fields.groups()
+    assert ctx.fields.get(field.id).group_name == "回滚分组"
+    assert events == []
+
+
+def test_field_groups_migrate_from_v3_and_restore(ctx, tmp_path):
+    """真实 v3 库没有分组表：恢复时迁移旧分组，包括仅有已归档字段的组。"""
+    field = ctx.fields.add("旧库字段", group_name="旧库专用组")
+    pid = ctx.papers.create({_title(ctx).id: "旧库论文", field.id: "应保留的内容"})
+    ctx.fields.archive(field.id)
+    old = tmp_path / "v3.db"
+    dst = sqlite3.connect(old)
+    ctx.db.conn.backup(dst)
+    dst.execute("DROP TABLE field_group")
+    dst.execute("PRAGMA user_version=3")
+    dst.commit()
+    dst.close()
+    ctx.fields.add_group("只在当前库中")
+    ctx.backup.restore(old)
+    assert ctx.db.query_one("PRAGMA user_version")[0] == 4
+    assert "旧库专用组" in ctx.fields.groups() and "只在当前库中" not in ctx.fields.groups()
+    assert ctx.papers.get(pid).text_of(field.id) == "应保留的内容"
+    assert list(ctx.fs.backups_dir.glob("*_premigrate_v3.db"))
+
+
+def test_field_group_dialog_and_filtered_field_editor(app, ctx, monkeypatch):
+    """界面可新建、改名、删除分组，并在所选分组内新建/移动字段。"""
+    from PySide6.QtWidgets import QAbstractItemView, QInputDialog, QMessageBox
+    from litmgr.ui.field_group_dialog import FieldGroupDialog
+    from litmgr.ui.field_manager_dialog import FieldEditDialog, FieldManagerDialog
+    from litmgr.ui.field_form import PaperFieldForm, _CollapsibleGroup
+    group_dialog = FieldGroupDialog(None, ctx)
+    manager = FieldManagerDialog(None, ctx)
+    try:
+        monkeypatch.setattr(QInputDialog, "getText", lambda *_a, **_kw: ("复现", True))
+        group_dialog.add()
+        manager.refresh()
+        manager.group_filter.setCurrentIndex(manager.group_filter.findData("复现"))
+        assert manager.list.count() == 0
+        assert manager.list.dragDropMode() == QAbstractItemView.NoDragDrop
+        editor = FieldEditDialog(manager, ctx, None, default_group="复现")
+        editor.name.setText("复现说明")
+        assert editor.group.currentText() == "复现"
+        editor.accept()
+        manager.refresh()
+        assert manager.list.count() == 1
+        fid = manager.list.item(0).data(Qt.UserRole)
+        pid = ctx.papers.create({_title(ctx).id: "界面论文", fid: "保留内容"})
+        monkeypatch.setattr(QInputDialog, "getText", lambda *_a, **_kw: ("复现进展", True))
+        group_dialog.rename()
+        assert ctx.fields.get(fid).group_name == "复现进展"
+        monkeypatch.setattr(QMessageBox, "question", lambda *_a, **_kw: QMessageBox.Yes)
+        group_dialog.delete()
+        manager.refresh()
+        manager.group_filter.setCurrentIndex(manager.group_filter.findData(""))
+        assert any(manager.list.item(i).data(Qt.UserRole) == fid for i in range(manager.list.count()))
+        form = PaperFieldForm(ctx, pid)
+        assert "未分组" in [g.title() for g in form.widget().findChildren(_CollapsibleGroup)]
+        assert form.editors[fid].text() == "保留内容"
+        form.close()
+        editor = FieldEditDialog(manager, ctx, ctx.fields.get(fid))
+        editor.group.setCurrentText("实验")
+        editor.accept()
+        assert ctx.fields.get(fid).group_name == "实验"
+    finally:
+        group_dialog.close()
+        manager.close()
+

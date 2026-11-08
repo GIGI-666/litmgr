@@ -3,30 +3,34 @@
 【作用】管理论文卡片的字段：新增、编辑（改名/改类型/候选项/别名/分组/是否在列表显示）、
     拖动调整顺序、归档与恢复、永久删除。所有论文共用同一套字段，修改后各窗口自动刷新。
 【要点】
+    - 可按分组筛选字段，从“管理分组”新建、改名或删除字段分组。
     - “归档”只是隐藏字段，数据保留，可随时恢复；“永久删除”只对已归档字段开放。
     - 改类型前会预览有多少值会被规范化/无法按新类型解析（原文始终保留，不丢数据）。
     - 别名：导入卡片时，卡片里写成别名的字段名也会被识别为这个字段。
 【依赖】services.field_service（通过 AppContext）；core.field_types（类型列表）。
 【被谁调用】ui.main_window（“字段管理”菜单）。
+【扩展点】单字段编辑在 FieldEditDialog，分组整体管理在 ui.field_group_dialog。
 """
 
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
-                               QFormLayout, QLabel, QLineEdit, QListWidget,
+                               QFormLayout, QHBoxLayout, QLabel, QLineEdit, QListWidget,
                                QListWidgetItem, QMessageBox, QPlainTextEdit, QVBoxLayout)
 
 from ..core.field_types import FIELD_TYPES
 from ..core.models import FieldDef
 from ..services.app_context import AppContext
-from .utils import add_buttons, guarded
+from .field_group_dialog import FieldGroupDialog
+from .utils import add_buttons, guarded, make_button
 
 
 class FieldEditDialog(QDialog):
     """新增/编辑单个字段。"""
 
-    def __init__(self, parent, ctx: AppContext, fdef: FieldDef | None) -> None:
+    def __init__(self, parent, ctx: AppContext, fdef: FieldDef | None,
+                 default_group: str = "") -> None:
         super().__init__(parent)
         self.ctx, self.fdef = ctx, fdef
         self.setWindowTitle("编辑字段" if fdef else "新增字段")
@@ -39,8 +43,9 @@ class FieldEditDialog(QDialog):
         self.type.setCurrentIndex(max(self.type.findData(fdef.type if fdef else "longtext"), 0))
         self.group = QComboBox()
         self.group.setEditable(True)
+        self.group.addItem("未分组")
         self.group.addItems(ctx.fields.groups())
-        self.group.setCurrentText(fdef.group_name if fdef else "")
+        self.group.setCurrentText((fdef.group_name if fdef else default_group) or "未分组")
         self.options = QPlainTextEdit("\n".join(fdef.options) if fdef else "")
         self.options.setPlaceholderText("单选字段的候选项，每行一个（也允许输入候选之外的值）")
         self.aliases = QPlainTextEdit("\n".join(fdef.aliases) if fdef else "")
@@ -67,6 +72,9 @@ class FieldEditDialog(QDialog):
     @guarded
     def accept(self) -> None:
         new_type = self.type.currentData()
+        group_name = self.group.currentText().strip()
+        if group_name == "未分组":
+            group_name = ""
         if self.fdef:
             if new_type != self.fdef.type:
                 changed, unparsed = self.ctx.fields.preview_type_change(self.fdef.id, new_type)
@@ -77,19 +85,21 @@ class FieldEditDialog(QDialog):
                     return
             f = self.fdef
             f.name, f.type = self.name.text(), new_type
-            f.group_name = self.group.currentText().strip()
+            f.group_name = group_name
             f.options, f.aliases = self._lines(self.options), self._lines(self.aliases)
             f.show_in_list = self.show_in_list.isChecked()
             self.ctx.fields.update(f)
         else:
             self.ctx.fields.add(self.name.text(), new_type, options=self._lines(self.options),
                                 aliases=self._lines(self.aliases),
-                                group_name=self.group.currentText().strip(),
+                                group_name=group_name,
                                 show_in_list=self.show_in_list.isChecked())
         super().accept()
 
 
 class FieldManagerDialog(QDialog):
+    """按分组筛选、增改字段，并提供字段分组管理入口。"""
+
     def __init__(self, parent, ctx: AppContext) -> None:
         super().__init__(parent)
         self.ctx = ctx
@@ -97,6 +107,13 @@ class FieldManagerDialog(QDialog):
         self.resize(560, 620)
         lay = QVBoxLayout(self)
         lay.addWidget(QLabel("拖动调整字段顺序（影响详情页与对比窗口）；双击编辑。"))
+        group_bar = QHBoxLayout()
+        group_bar.addWidget(QLabel("字段分组："))
+        self.group_filter = QComboBox()
+        self.group_filter.currentIndexChanged.connect(lambda _i: self.refresh())
+        group_bar.addWidget(self.group_filter, 1)
+        group_bar.addWidget(make_button("管理分组…", self.manage_groups))
+        lay.addLayout(group_bar)
         self.list = QListWidget()
         self.list.setDragDropMode(QAbstractItemView.InternalMove)
         self.list.model().rowsMoved.connect(self._on_moved)
@@ -110,16 +127,41 @@ class FieldManagerDialog(QDialog):
         self.refresh()
 
     def refresh(self) -> None:
+        """更新分组筛选及字段列表；筛选时禁用拖动，避免扰乱全局顺序。"""
+        selected_group = self.group_filter.currentData()
+        self.group_filter.blockSignals(True)
+        self.group_filter.clear()
+        self.group_filter.addItem("全部分组", None)
+        self.group_filter.addItem("未分组", "")
+        for group in self.ctx.fields.groups():
+            self.group_filter.addItem(group, group)
+        self.group_filter.setCurrentIndex(max(0, self.group_filter.findData(selected_group)))
+        self.group_filter.blockSignals(False)
+        selected_group = self.group_filter.currentData()
+        self.list.setDragDropMode(QAbstractItemView.InternalMove if selected_group is None
+                                  else QAbstractItemView.NoDragDrop)
+        current = self.list.currentItem()
+        selected_id = current.data(Qt.UserRole) if current else None
         self.list.blockSignals(True)
         self.list.clear()
         for f in self.ctx.fields.list(include_archived=self.show_archived.isChecked()):
-            text = f"{f.name}    [{f.type}]  {f.group_name}" + ("    （已归档）" if f.archived else "")
+            if selected_group is not None and f.group_name != selected_group:
+                continue
+            text = f"{f.name}    [{f.type}]  {f.group_name or '未分组'}" + ("    （已归档）" if f.archived else "")
             it = QListWidgetItem(text)
             it.setData(Qt.UserRole, f.id)
             if f.archived:
                 it.setForeground(Qt.gray)
             self.list.addItem(it)
+            if f.id == selected_id:
+                self.list.setCurrentItem(it)
         self.list.blockSignals(False)
+
+    @guarded
+    def manage_groups(self) -> None:
+        """打开组名管理；关闭后同步空分组、改名和删除结果。"""
+        FieldGroupDialog(self, self.ctx).exec()
+        self.refresh()
 
     def _current(self) -> FieldDef | None:
         it = self.list.currentItem()
@@ -132,7 +174,8 @@ class FieldManagerDialog(QDialog):
 
     @guarded
     def add(self) -> None:
-        if FieldEditDialog(self, self.ctx, None).exec() == QDialog.Accepted:
+        if FieldEditDialog(self, self.ctx, None,
+                           default_group=self.group_filter.currentData() or "").exec() == QDialog.Accepted:
             self.refresh()
 
     @guarded
