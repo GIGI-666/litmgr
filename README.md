@@ -46,7 +46,7 @@
 准备 Python 3.12（64 位）和 Git。克隆私有仓库前，账号须已获访问权限；也可在 GitHub 点击 **Code → Download ZIP** 后解压。
 
 ```powershell
-git clone https://github.com/GIGI-666/litmgr.git
+git clone https://github.com/livcheng666/litmgr.git
 cd litmgr
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip

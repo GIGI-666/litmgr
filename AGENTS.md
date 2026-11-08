@@ -8,11 +8,13 @@
 
 ## 持续同步 GitHub（用户已授权）
 
-用户要求：以后完成文献管理系统或论文翻译技能的修改后，都提交并同步至私有仓库 `https://github.com/GIGI-666/litmgr`，同时更新文献库新增论文和其他业务数据。无需在每次正常同步前重复请求许可。保持仓库私有；不自动邀请协作者或更改访问权限。
+用户确认自己的 GitHub 账号为 **livcheng666**。唯一目标私有仓库为 `https://github.com/livcheng666/litmgr`；不要把本机预存的 GitHub CLI 账号当作用户浏览器登录账号。此前误建的 `GIGI-666/litmgr` 正在纠正所有者，必须核实目标账号接收转移后才算迁移完成。
+
+用户要求：以后完成文献管理系统或论文翻译技能的修改后，都提交并同步至上述目标仓库，同时更新文献库新增论文和其他业务数据。无需在每次正常同步前重复请求许可。保持仓库私有；不自动邀请协作者或更改访问权限。
 
 完成相关任务时：
 
-1. 检查 Git 状态和远程分支，保留他人的未提交工作，不混入与本次无关的改动。
+1. 检查 Git 状态和远程分支，保留他人的未提交工作，不混入与本次无关的改动。远端写入前用 `gh api user` 等确认实际授权身份与用户确认的目标账号一致；不一致时暂停正常同步，先处理账号授权。仓库接收转移后，将 origin 改为 `https://github.com/livcheng666/litmgr.git`，核实私有状态及文件完整性，并核查/移除误用来源账号残留的协作访问。纠正本次错误所有者的定向转移不等于允许继续向错误账号上传日常更新。
 2. 程序有代码修改时运行 `pytest -q` 和 `pyflakes litmgr tests`；技能脚本或分享工具有修改时也做相应验证。Windows 离屏测试设置 `QT_QPA_PLATFORM=offscreen`、`QT_QPA_FONTDIR=C:/Windows/Fonts`、`QTWEBENGINE_CHROMIUM_FLAGS=--no-sandbox --disable-gpu`。
 3. 技能以仓库 `skill/paper-translate-package/` 提供可编辑版本，修改后用 `scripts/package_skill.py` 重建 ZIP。若本机已安装在 `C:/Users/GIGI/.codex/skills/paper-translate-package/`，核对变更来源后同步这两份源码，避免将旧版覆盖新版；更新使用说明中的行为变化。
 4. 查明本次实际使用的文献库。原维护者本机通常为 `D:/2file/研究生2026.9.7/文献库`，配置在 `LITMGR_HOME/config.json` 或 `%APPDATA%/litmgr/config.json`；换机器后不要把这个绝对路径当作必需目录。使用 `scripts/snapshot_library.py` 从真实库只读生成新快照，核验后更新仓库 `shared_library/`，包括数据库、已有关联文件、历史备份和可移植设置。不要把仓库旧快照反向覆盖用户实际使用的库。
