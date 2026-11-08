@@ -1,8 +1,10 @@
 # 个人文献管理系统 litmgr
 
+<img src="litmgr/assets/app-icon.png" width="80" alt="litmgr 文档叠页与书签图标">
+
 本地、离线的个人文献管理桌面工具，面向论文收集、卡片整理、对照阅读和研究笔记。使用 **Python 3.12 + PySide6 6.8.3 + SQLite**，按模块分层，便于继续开发。
 
-本仓库同时交接应用源码、四篇现有论文的数据快照，以及“论文翻译与卡片打包”技能源码和安装包。
+本仓库同时交接应用源码、现有论文的数据快照，以及“论文翻译与卡片打包”技能源码和安装包。
 
 ## 先看哪份教程
 
@@ -21,16 +23,16 @@
 - 多条阅读笔记、字段修改历史及撤销；多篇论文按字段对比，差异高亮，可编辑并导出。
 - 导出卡片 TXT、CSV 和 Markdown 对比表；数据库备份与恢复、多窗口、同库单实例保护。
 
-## 仓库里的四篇论文和数据
+## 仓库里的论文和数据
 
 `shared_library/` 是一次独立、完整的文献库快照，**用软件打开，不需要重新导入 PDF**。
 
 | 内容 | 当前快照 |
 | --- | ---: |
-| 论文 | 4 篇 |
-| PDF（正文及补充材料） | 7 份 |
-| 翻译 Markdown | 4 份 |
-| 已存卡片 TXT | 2 份 |
+| 论文 | 5 篇 |
+| PDF（正文及补充材料） | 8 份 |
+| 翻译 Markdown | 5 份 |
+| 已存卡片 TXT | 3 份 |
 | 现行卡片字段 / 字段分组 | 27 / 6 |
 | 论文分组 | 2 个 |
 | 已有数据库备份 | 6 份 |
@@ -56,7 +58,7 @@ py -3.12 -m venv .venv
 
 项目固定使用 PySide6 **6.8.3**。先按 `requirements.txt` 安装；安装依赖需要联网，软件本身及内置公式渲染可离线使用。
 
-### 打开随仓库交接的四篇论文
+### 打开随仓库交接的论文
 
 以下复制命令只执行一次；目标已存在时换一个新的目录名，避免把两份文献库合并。
 
@@ -80,6 +82,14 @@ Copy-Item -LiteralPath .\shared_library -Destination ..\litmgr-library -Recurse
 ```
 
 也可双击 `start.bat`，首次选择一个文献库文件夹，之后记住上次位置。命令行 `--library` 优先于上次记录。
+
+Windows 用户还可生成带专属图标的启动快捷方式：
+
+```powershell
+.\.venv\Scripts\python.exe scripts\create_shortcut.py
+```
+
+之后双击项目文件夹里的“文献管理系统”快捷方式启动。快捷方式使用当前电脑的绝对路径，移动项目文件夹后重新生成；快捷方式本身不提交 Git。应用主窗口、详情和阅读等窗口共用同一图标，更新图标后重启软件生效。
 
 ## 日常使用
 
@@ -114,6 +124,6 @@ Copy-Item -LiteralPath .\shared_library -Destination ..\litmgr-library -Recurse
 
 可直接发送下面这段交接说明：
 
-> 项目地址：https://github.com/GIGI-666/litmgr 。请先读 README.md 和 DEVELOPMENT.md，按教程安装 Python 3.12，复制 shared_library 后运行。仓库包含完整源码、四篇论文及现有数据库、翻译技能源码和 ZIP。请在自己的 Fork 或独立分支上开发，说明修改内容与测试结果后提交 Pull Request。
+> 项目地址：https://github.com/GIGI-666/litmgr 。请先读 README.md 和 DEVELOPMENT.md，按教程安装 Python 3.12，复制 shared_library 后运行。仓库包含完整源码、现有论文及数据库、翻译技能源码和 ZIP。请在自己的 Fork 或独立分支上开发，说明修改内容与测试结果后提交 Pull Request。
 
 建议协作者在 `codex/功能名` 等独立分支开发，通过 Pull Request 讨论合并。开始前阅读 [开发接手指南](DEVELOPMENT.md)；做性能测试或数据迁移试验时使用文献库副本。

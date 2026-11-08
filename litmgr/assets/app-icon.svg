@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>litmgr 文献管理系统</title>
+  <desc>蓝色圆角底，白色文献叠页，金色书签与代表文献和版面分析的 L 形块面。</desc>
+  <defs>
+    <linearGradient id="tile" x1="28" y1="16" x2="224" y2="244" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3979EA"/>
+      <stop offset="0.54" stop-color="#2259C6"/>
+      <stop offset="1" stop-color="#183D93"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="66" y1="36" x2="181" y2="216" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#EAF3FF"/>
+    </linearGradient>
+    <linearGradient id="bookmark" x1="152" y1="34" x2="176" y2="100" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFD487"/>
+      <stop offset="1" stop-color="#F3A83E"/>
+    </linearGradient>
+    <linearGradient id="letter" x1="79" y1="83" x2="157" y2="175" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#326DDB"/>
+      <stop offset="1" stop-color="#204EAE"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="54" fill="url(#tile)"/>
+  <path d="M62 9H194C223.271 9 247 32.729 247 62" fill="none" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="2"/>
+  <rect x="76" y="53" width="128" height="174" rx="19" fill="#0D2A76" opacity="0.24"/>
+  <rect x="74" y="48" width="128" height="174" rx="19" fill="#86B5F6"/>
+  <rect x="54" y="39" width="136" height="180" rx="18" fill="#143C8E" opacity="0.18"/>
+  <rect x="52" y="34" width="136" height="180" rx="18" fill="url(#paper)"/>
+  <path d="M153 34H174V100L163.5 92L153 100V34Z" fill="url(#bookmark)"/>
+  <path d="M153 35H174" stroke="#FFF1C9" stroke-width="2"/>
+  <path d="M79 83H98V153H156V173H79V83Z" fill="url(#letter)"/>
+  <rect x="111" y="83" width="30" height="19" rx="4" fill="#91B7EE"/>
+  <rect x="111" y="114" width="45" height="12" rx="4" fill="#B4CEF1"/>
+  <rect x="111" y="133" width="45" height="9" rx="3" fill="#CDDDF4"/>
+  <rect x="79" y="185" width="77" height="6" rx="3" fill="#C5D9F4"/>
+</svg>

@@ -1,27 +1,27 @@
 {
-  "captured_at": "2026-11-08T19:17:40.410699+08:00",
+  "captured_at": "2026-11-08T20:27:33.484458+08:00",
   "schema_version": 4,
   "counts": {
-    "paper": 4,
+    "paper": 5,
     "field_def": 27,
     "field_group": 6,
-    "field_value": 40,
-    "paper_file": 13,
+    "field_value": 66,
+    "paper_file": 16,
     "note": 0,
     "tag": 0,
     "collection": 2,
     "saved_view": 0,
     "change_log": 1,
-    "pending_content": 0,
-    "reading_history": 3
+    "pending_content": 1,
+    "reading_history": 4
   },
   "file_kinds": {
-    "card": 2,
-    "pdf": 7,
-    "translation": 4
+    "card": 3,
+    "pdf": 8,
+    "translation": 5
   },
   "backup_count": 6,
-  "total_bytes": 41584242,
+  "total_bytes": 74038525,
   "files": {
     "backups/litmgr_20261030_140343.db": {
       "bytes": 630784,
@@ -48,12 +48,12 @@
       "sha256": "3b2e859a7067290e402a46a31e30ef35057590743bd843897fabd323f3679da4"
     },
     "config.snapshot.json": {
-      "bytes": 333,
-      "sha256": "b5c4ca0112cc4aba481fd3fc8fc559e1df5dffa98a98916428c30f8c6a59efe0"
+      "bytes": 332,
+      "sha256": "96c8c8d38f9e99b4868e6b9e78da019307257465c961123415659f7413a3bd83"
     },
     "db/litmgr.db": {
-      "bytes": 2248704,
-      "sha256": "6f2662dd0ec241674b2f9096a7f4f6fa5b50ae66ac6b1c8d7bc822e21c71a887"
+      "bytes": 2822144,
+      "sha256": "33a73f76c4ff21ce7143178d1714f118ebf061264e45ba46430f0db9ff86a4fe"
     },
     "papers/1/card/基于Transformer的端到端目标检测2005论文卡片_0136a92e.txt": {
       "bytes": 3220,
@@ -106,6 +106,18 @@
     "papers/4/translation/RT-DocLayout：面向真实场景、融合阅读顺序的实时端到端文档版面分析26_266eabe8.md": {
       "bytes": 46087,
       "sha256": "266eabe8cc2007e770945f5d84184e9b77cde522ded139a9eba10e47d8f1bb49"
+    },
+    "papers/5/card/DocLayout-YOLO：采用网格引导合成预训练的轴向注意力文档版面检测器论_75c6af6c.txt": {
+      "bytes": 9347,
+      "sha256": "75c6af6cca28b5e29df00cd99d19404389e5e93efff9329b3a9b26b97e4274c8"
+    },
+    "papers/5/pdf/DocLayout-YOLO：采用网格引导合成预训练的轴向注意力文档版面检测器_904fc51f.pdf": {
+      "bytes": 31772480,
+      "sha256": "904fc51f817d9a4a4929c732fae4fb260a2d752a01176746b61e702ae086f490"
+    },
+    "papers/5/translation/DocLayout-YOLO：采用网格引导合成预训练的轴向注意力文档版面检测器翻_6cd8586c.md": {
+      "bytes": 99017,
+      "sha256": "6cd8586c6ba3fd5bdbf5906b774783dbe4eff25aa10cc2f197b1590499a3622b"
     }
   },
   "note": "数据库由 SQLite 在线备份生成；排除运行锁、WAL/SHM/journal及日志；配置保留启动偏好和窗口布局，清空本机文献库绝对路径。"

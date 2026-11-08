@@ -634,3 +634,28 @@ def test_paper_bundle_keeps_full_title_without_silent_shortening():
     with pytest.raises(ValueError, match="长度限制"):
         module.safe_stem("文" * 248)
 
+
+def test_app_icon_has_windows_sizes_and_is_inherited_by_windows(app, ctx):
+    """实际多尺寸 ICO 能被 Qt 读取，主窗口/详情/对比统一继承应用图标。"""
+    from PySide6.QtGui import QIcon
+    from litmgr.ui.app_icon import ASSETS_DIR, configure_app_icon
+    from litmgr.ui.window_manager import WindowManager
+    previous = app.windowIcon()
+    windows = WindowManager(ctx)
+    try:
+        asset = QIcon(str(ASSETS_DIR / "app-icon.ico"))
+        available = {size.width() for size in asset.availableSizes()}
+        assert {16, 24, 32, 48, 64, 128, 256}.issubset(available)
+        configure_app_icon(app)
+        assert not app.windowIcon().isNull()
+        pid = ctx.papers.create({_title(ctx).id: "图标测试论文"})
+        opened = [windows.open_main(None), windows.open_detail(pid), windows.open_compare([pid])]
+        for window in opened:
+            assert not window.windowIcon().isNull()
+            assert window.windowIcon().cacheKey() == app.windowIcon().cacheKey()
+            assert not window.windowIcon().pixmap(16, 16).isNull()
+            assert not window.windowIcon().pixmap(256, 256).isNull()
+    finally:
+        windows.close_all()
+        app.setWindowIcon(previous)
+

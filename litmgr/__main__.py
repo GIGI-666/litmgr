@@ -21,6 +21,7 @@ from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 from . import APP_NAME
 from .core.config import AppConfig, config_dir
 from .services.app_context import AppContext
+from .ui.app_icon import configure_app_icon
 from .ui.utils import apply_app_style
 from .ui.window_manager import WindowManager
 
@@ -86,6 +87,7 @@ def main(argv: list[str] | None = None) -> int:
     _setup_logging()
     app = QApplication(sys.argv[:1])
     app.setApplicationName(APP_NAME)
+    configure_app_icon(app)
     apply_app_style(app)
 
     def excepthook(exc_type, exc, tb) -> None:

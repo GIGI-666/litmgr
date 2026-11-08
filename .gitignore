@@ -25,3 +25,6 @@ scripts/_shots/
 *.zip.tmp
 .litmgr-snapshot-*/
 .skill-package-*/
+
+# 快捷方式包含本机绝对路径，其他开发者用脚本在各自电脑生成。
+*.lnk

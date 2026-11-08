@@ -2,7 +2,7 @@
 
 ## 一、先建立可工作的基线
 
-按 [README](README.md) 安装 Python 3.12 与 `requirements.txt`，运行环境自检，然后在四篇论文的库副本中确认主窗口、详情和 PDF/翻译双栏能打开。
+按 [README](README.md) 安装 Python 3.12 与 `requirements.txt`，运行环境自检，然后在随仓库提供的文献库副本中确认主窗口、详情和 PDF/翻译双栏能打开。
 
 项目目前以 Windows 验证为主；其他系统可按相同 Python 包结构运行，但需要自行验证 QtPdf/QtWebEngine 的系统依赖。
 
@@ -16,7 +16,7 @@ $env:QTWEBENGINE_CHROMIUM_FLAGS='--no-sandbox --disable-gpu'
 .\.venv\Scripts\python.exe -m pyflakes litmgr tests
 ```
 
-当前应用、分享工具及技能命名测试基线为 **60 项通过**，导入测试使用固定临时小样，不依赖原维护者的私人目录。Qt 离屏平台不指定字体目录可能无法加载字体，导致测试 PDF 没有可搜索文字；不要把这个环境问题误当搜索功能回归。
+当前应用、分享工具、技能命名及窗口图标测试基线为 **61 项通过**，导入测试使用固定临时小样，不依赖原维护者的私人目录。Qt 离屏平台不指定字体目录可能无法加载字体，导致测试 PDF 没有可搜索文字；不要把这个环境问题误当搜索功能回归。
 
 上述环境变量只用于当前测试终端。测试后新开一个 PowerShell 运行真实 GUI，或移除这些设置：
 
@@ -124,3 +124,11 @@ git push -u origin codex/your-feature
 - 单实例锁尚无自动化覆盖。FieldService 未加查询缓存，修改时需考虑备份恢复后的失效。
 
 这些是后续开发方向，不应在仅修文档或性能优化时顺带改变现有行为。
+
+## 八、图标维护
+
+原创图标的可编辑源稿是 `litmgr/assets/app-icon.svg`。修改后运行 `python scripts/build_icon.py`，生成主 PNG、含 16/20/24/32/40/48/64/128/256 像素帧的 ICO 和 `planning/assets/app-icon-preview.png`。无需新增图像依赖，直接用已有的 QtSvg 渲染。
+
+启动入口调用 `ui.app_icon.configure_app_icon()`，设置全局 QIcon 和 Windows 任务栏应用标识。图标显示随新进程生效，避免为更新图标强行关闭用户正在编辑的窗口。
+
+Windows 快捷方式通过 `python scripts/create_shortcut.py` 在每台电脑生成，使用 `.venv/Scripts/pythonw.exe -m litmgr`、当前项目作为工作目录，以及仓库内 ICO；保存后核对这些设置。`.lnk` 含本机路径并被 Git 忽略。
