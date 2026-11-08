@@ -43,7 +43,7 @@
 
 ## 快速开始（Windows PowerShell）
 
-准备 Python 3.12（64 位）和 Git。克隆私有仓库前，账号须已获访问权限；也可在 GitHub 点击 **Code → Download ZIP** 后解压。
+准备 Python 3.12（64 位）和 Git。本仓库公开，可直接克隆；也可在 GitHub 点击 **Code → Download ZIP** 后解压。
 
 ```powershell
 git clone https://github.com/GIGI-666/litmgr.git
@@ -105,6 +105,13 @@ Copy-Item -LiteralPath .\shared_library -Destination ..\litmgr-library -Recurse
 
 ## 分享给其他开发者
 
-仓库设为私有，直接发链接还不能让别人访问。仓库所有者在 GitHub 的 **Settings → Collaborators** 邀请指定 GitHub 账号，对方接受后即可克隆和提交分支。
+仓库已公开，直接把链接 `https://github.com/GIGI-666/litmgr` 发给对方即可访问和下载。
+
+- **让对方独立开发并把改动交回来**：对方点右上角 **Fork**，克隆自己账号下的副本，开分支修改后提交 **Pull Request** 给本仓库，由维护者查看并合并。这种方式不需要先邀请协作者。
+- **让熟悉的开发者直接在本仓库提交分支**：仓库所有者在 **Settings → Collaborators → Add people** 邀请对方 GitHub 账号。对方接受后可推送开发分支，再通过 Pull Request 合并。
+
+可直接发送下面这段交接说明：
+
+> 项目地址：https://github.com/GIGI-666/litmgr 。请先读 README.md 和 DEVELOPMENT.md，按教程安装 Python 3.12，复制 shared_library 后运行。仓库包含完整源码、四篇论文及现有数据库、翻译技能源码和 ZIP。请在自己的 Fork 或独立分支上开发，说明修改内容与测试结果后提交 Pull Request。
 
 建议协作者在 `codex/功能名` 等独立分支开发，通过 Pull Request 讨论合并。开始前阅读 [开发接手指南](DEVELOPMENT.md)；做性能测试或数据迁移试验时使用文献库副本。
