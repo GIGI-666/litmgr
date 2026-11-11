@@ -1,5 +1,5 @@
 {
-  "captured_at": "2026-11-08T20:27:33.484458+08:00",
+  "captured_at": "2026-11-11T15:42:24.293576+08:00",
   "schema_version": 4,
   "counts": {
     "paper": 5,
@@ -20,8 +20,8 @@
     "pdf": 8,
     "translation": 5
   },
-  "backup_count": 6,
-  "total_bytes": 74038525,
+  "backup_count": 7,
+  "total_bytes": 76860670,
   "files": {
     "backups/litmgr_20261030_140343.db": {
       "bytes": 630784,
@@ -47,13 +47,17 @@
       "bytes": 2248704,
       "sha256": "3b2e859a7067290e402a46a31e30ef35057590743bd843897fabd323f3679da4"
     },
+    "backups/litmgr_20261109_074841.db": {
+      "bytes": 2822144,
+      "sha256": "a1c868fe5084cdb3979bb5a7d4e95ae9abdaa9df989bc974fd9ed733d38408e5"
+    },
     "config.snapshot.json": {
-      "bytes": 332,
-      "sha256": "96c8c8d38f9e99b4868e6b9e78da019307257465c961123415659f7413a3bd83"
+      "bytes": 333,
+      "sha256": "6de8a98fd4b36bee5bcbf162f9f82bff7898fcdd5936002fed2bad8de8908dea"
     },
     "db/litmgr.db": {
       "bytes": 2822144,
-      "sha256": "33a73f76c4ff21ce7143178d1714f118ebf061264e45ba46430f0db9ff86a4fe"
+      "sha256": "24ebca784c3ca9c503f4490d0495f1afd647034cbdd253beb6d119e8ed8866fd"
     },
     "papers/1/card/基于Transformer的端到端目标检测2005论文卡片_0136a92e.txt": {
       "bytes": 3220,
