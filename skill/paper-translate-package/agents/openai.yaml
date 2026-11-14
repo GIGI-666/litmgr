@@ -1,4 +1,4 @@
 interface:
   display_name: "论文翻译与卡片打包"
-  short_description: "按最新模板完整翻译论文及可选补充材料，生成卡片和可导入文献系统的文件包"
-  default_prompt: "使用 $paper-translate-package，依据正文 PDF、可选补充材料及实际核实的可靠网络来源，按最新模板生成完整译文、卡片和可导入文件包；未核实的内容不填，禁止编造。"
+  short_description: "按最新模板完整翻译论文及可选补充材料，生成卡片和文件包并自动导入 litmgr"
+  default_prompt: "使用 $paper-translate-package，依据正文 PDF、可选补充材料及实际核实的可靠网络来源，按最新模板生成完整译文、卡片和文件包并自动导入当前个人文献库；未核实的内容不填，禁止编造。"

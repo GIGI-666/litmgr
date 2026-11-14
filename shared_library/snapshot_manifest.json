@@ -1,27 +1,27 @@
 {
-  "captured_at": "2026-11-11T15:42:24.293576+08:00",
+  "captured_at": "2026-11-14T08:44:31.741927+08:00",
   "schema_version": 4,
   "counts": {
-    "paper": 5,
-    "field_def": 27,
+    "paper": 8,
+    "field_def": 28,
     "field_group": 6,
-    "field_value": 66,
-    "paper_file": 16,
+    "field_value": 151,
+    "paper_file": 25,
     "note": 0,
     "tag": 0,
     "collection": 2,
     "saved_view": 0,
-    "change_log": 1,
-    "pending_content": 1,
+    "change_log": 5,
+    "pending_content": 0,
     "reading_history": 4
   },
   "file_kinds": {
-    "card": 3,
-    "pdf": 8,
-    "translation": 5
+    "card": 6,
+    "pdf": 11,
+    "translation": 8
   },
   "backup_count": 7,
-  "total_bytes": 76860670,
+  "total_bytes": 108637677,
   "files": {
     "backups/litmgr_20261030_140343.db": {
       "bytes": 630784,
@@ -56,8 +56,8 @@
       "sha256": "6de8a98fd4b36bee5bcbf162f9f82bff7898fcdd5936002fed2bad8de8908dea"
     },
     "db/litmgr.db": {
-      "bytes": 2822144,
-      "sha256": "24ebca784c3ca9c503f4490d0495f1afd647034cbdd253beb6d119e8ed8866fd"
+      "bytes": 4304896,
+      "sha256": "b62997438dd49252ea7c925d9675a8a585cfae140fe3cfa12720618fc29c1b77"
     },
     "papers/1/card/基于Transformer的端到端目标检测2005论文卡片_0136a92e.txt": {
       "bytes": 3220,
@@ -122,6 +122,42 @@
     "papers/5/translation/DocLayout-YOLO：采用网格引导合成预训练的轴向注意力文档版面检测器翻_6cd8586c.md": {
       "bytes": 99017,
       "sha256": "6cd8586c6ba3fd5bdbf5906b774783dbe4eff25aa10cc2f197b1590499a3622b"
+    },
+    "papers/7/card/Real5-OmniDocBench：面向真实场景鲁棒文档解析的全规模物理重建基_c92afb96.txt": {
+      "bytes": 11660,
+      "sha256": "c92afb965d3dc5405ba1b717b10804a329f95383656c886ac62c7729c27b3188"
+    },
+    "papers/7/pdf/Real5-OmniDocBench：面向真实场景鲁棒文档解析的全规模物理重建基_ea3a6563.pdf": {
+      "bytes": 9989629,
+      "sha256": "ea3a656329d2e6ea1094ae690c709a52ab5edb639d4a4bb0c6819c5e4c964c22"
+    },
+    "papers/7/translation/Real5-OmniDocBench：面向真实场景鲁棒文档解析的全规模物理重建基_f610e14b.md": {
+      "bytes": 44497,
+      "sha256": "f610e14b0dd846845d9e0132cc635c6267afa1eb6854db98da99a2d828510e27"
+    },
+    "papers/8/card/HG-Bench：面向自动作业评估的多页手写答案区域定位基准论文卡片_e8658181.txt": {
+      "bytes": 12344,
+      "sha256": "e865818142eaa86e8519727638f852887bb995b09e90cfd9713304e92154e6c4"
+    },
+    "papers/8/pdf/HG-Bench：面向自动作业评估的多页手写答案区域定位基准_d92cb05f.pdf": {
+      "bytes": 4557869,
+      "sha256": "d92cb05f08f6301b8a7745bd5745e576e33d8390f6d00de82d18605382d50be3"
+    },
+    "papers/8/translation/HG-Bench：面向自动作业评估的多页手写答案区域定位基准翻译_aa03181f.md": {
+      "bytes": 67115,
+      "sha256": "aa03181faf96dd481f5342f462ecb0674eb3e93a859bfe7670e3b0525b91a626"
+    },
+    "papers/9/card/弥合考试手写文本识别中的差距：数据集、基准与建模论文卡片_170c3007.txt": {
+      "bytes": 9891,
+      "sha256": "170c30073c2992ee212a5df12ff94a276d48df71c4b24eb21aefbec1f80fc1eb"
+    },
+    "papers/9/pdf/弥合考试手写文本识别中的差距：数据集、基准与建模_cd05c60a.pdf": {
+      "bytes": 15488099,
+      "sha256": "cd05c60acf0bdc7110d870ff6c36b96005cb219dea45a23d8f9d09861f6f62f2"
+    },
+    "papers/9/translation/弥合考试手写文本识别中的差距：数据集、基准与建模翻译_abd8e99a.md": {
+      "bytes": 113151,
+      "sha256": "abd8e99aa2e680cd71f4522dd4a5b8187a25b80e8b4d7b9c6c30aa827bf394e2"
     }
   },
   "note": "数据库由 SQLite 在线备份生成；排除运行锁、WAL/SHM/journal及日志；配置保留启动偏好和窗口布局，清空本机文献库绝对路径。"
