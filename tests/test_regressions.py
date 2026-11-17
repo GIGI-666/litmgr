@@ -113,6 +113,44 @@ def test_pdf_fit_width_and_ctrl_wheel(app, tmp_path):
         v.close()
 
 
+def test_pdf_mouse_anchor_on_later_page(app, tmp_path):
+    """连续缩放后第二页的同一位置仍停在鼠标下，固定页间距不被缩放。"""
+    from PySide6.QtCore import QPointF
+    from PySide6.QtPdfWidgets import QPdfView
+    from litmgr.ui.pdf_viewer import PdfViewer
+    pdf = tmp_path / "anchor.pdf"
+    _make_pdf(pdf)
+    v = PdfViewer()
+    v.resize(1000, 650)
+    v.show()
+    try:
+        v.load(str(pdf))
+        QTest.qWait(100)
+        v.view.setZoomMode(QPdfView.ZoomMode.Custom)
+        v.view.setZoomFactor(1.5)
+        rect = v._page_rects()[1]
+        QTest.qWait(50)
+        anchor = QPointF(500, 250)
+        v.view.horizontalScrollBar().setValue(round(rect.x() + rect.width() * .5 - anchor.x()))
+        v.view.verticalScrollBar().setValue(round(rect.y() + rect.height() * .4 - anchor.y()))
+        for factor in (1.2, 1.2, 1 / 1.2, 1 / 1.2):
+            v._zoom(factor, anchor)
+            QTest.qWait(30)
+            rect = v._page_rects()[1]
+            assert abs(rect.x() + rect.width() * .5 - v.view.horizontalScrollBar().value() - anchor.x()) < 3
+            assert abs(rect.y() + rect.height() * .4 - v.view.verticalScrollBar().value() - anchor.y()) < 3
+        v.activateWindow()
+        v.view.setFocus()
+        QTest.qWait(50)
+        old = v.view.zoomFactor()
+        QTest.keyClick(v.view, Qt.Key_Equal, Qt.ControlModifier)
+        assert v.view.zoomFactor() == pytest.approx(old * 1.2)
+        QTest.keyClick(v.view, Qt.Key_Minus, Qt.ControlModifier)
+        assert v.view.zoomFactor() == pytest.approx(old)
+    finally:
+        v.close()
+
+
 def test_restore_old_schema_backup(ctx, tmp_path):
     ctx.papers.create({_title(ctx).id: "A"})
     old = tmp_path / "old.db"

@@ -8,8 +8,8 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QModelIndex, QPointF, Qt, QTimer
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtCore import QEvent, QModelIndex, QPointF, QRectF, Qt, QTimer
+from PySide6.QtGui import QGuiApplication, QKeySequence, QShortcut
 from PySide6.QtPdf import QPdfDocument, QPdfSearchModel
 from PySide6.QtPdfWidgets import QPdfView
 from PySide6.QtWidgets import (QHBoxLayout, QLabel, QLineEdit, QPushButton, QSpinBox,
@@ -61,6 +61,12 @@ class PdfViewer(QWidget):
         lay.addWidget(self.view, 1)
 
         self.view.pageNavigator().currentPageChanged.connect(self._on_page_changed)
+        for key, callback in (("Ctrl+=", self.zoom_in), ("Ctrl++", self.zoom_in),
+                              ("Ctrl+-", self.zoom_out), ("Ctrl+0", self.fit_width)):
+            shortcut = QShortcut(QKeySequence(key), self)
+            shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            shortcut.activated.connect(callback)
+        self.view.setToolTip("Ctrl＋滚轮：围绕鼠标缩放；Ctrl＋加号/减号：整体缩放；Ctrl＋0：适应宽度")
 
     # ---------- 加载 ----------
     def load(self, path: str) -> bool:
@@ -110,12 +116,54 @@ class PdfViewer(QWidget):
             scale = min(scale, height / max(1, size.height()))
         return scale
 
-    def _zoom(self, factor: float) -> None:
+    def _page_rects(self) -> list[QRectF]:
+        """按 Qt 6.8 多页布局计算页面矩形，包含固定页间距和水平居中。"""
+        mode = self.view.zoomMode()
+        viewport = self.view.viewport().size()
+        margins = self.view.documentMargins()
+        dpi = QGuiApplication.primaryScreen().logicalDotsPerInch() / 72
+        sizes = []
+        for page in range(self.doc.pageCount()):
+            points = self.doc.pagePointSize(page)
+            size = (points * dpi).toSize()
+            if mode == QPdfView.ZoomMode.Custom:
+                size = (points * dpi * self.view.zoomFactor()).toSize()
+            elif mode == QPdfView.ZoomMode.FitToWidth:
+                size *= max(1, viewport.width() - margins.left() - margins.right()) / max(1, size.width())
+            else:
+                size = size.scaled(viewport.width() - margins.left() - margins.right(),
+                                   viewport.height() - margins.top() - self.view.pageSpacing(),
+                                   Qt.AspectRatioMode.KeepAspectRatio)
+            sizes.append(size)
+        width = max([s.width() for s in sizes], default=0) + margins.left() + margins.right()
+        y = margins.top()
+        rects = []
+        for size in sizes:
+            x = (max(width, viewport.width()) - size.width()) // 2
+            rects.append(QRectF(x, y, size.width(), size.height()))
+            y += size.height() + self.view.pageSpacing()
+        return rects
+
+    def _zoom(self, factor: float, anchor: QPointF | None = None) -> None:
         if not self.doc.pageCount():
             return
+        target = None
+        if anchor is not None:
+            point = anchor + QPointF(self.view.horizontalScrollBar().value(),
+                                     self.view.verticalScrollBar().value())
+            for page, rect in enumerate(self._page_rects()):
+                if rect.contains(point):
+                    target = (page, (point.x() - rect.x()) / rect.width(),
+                              (point.y() - rect.y()) / rect.height())
+                    break
         zoom = max(0.1, min(5.0, self._effective_zoom() * factor))
         self.view.setZoomMode(QPdfView.ZoomMode.Custom)
         self.view.setZoomFactor(zoom)
+        if target is not None:
+            page, x, y = target
+            rect = self._page_rects()[page]
+            self.view.horizontalScrollBar().setValue(round(rect.x() + x * rect.width() - anchor.x()))
+            self.view.verticalScrollBar().setValue(round(rect.y() + y * rect.height() - anchor.y()))
 
     def eventFilter(self, watched, event) -> bool:
         """仅在 PDF 视口内拦截 Ctrl＋滚轮，普通滚轮仍交给阅读器滚动。"""
@@ -123,7 +171,7 @@ class PdfViewer(QWidget):
                 and event.modifiers() & Qt.KeyboardModifier.ControlModifier):
             delta = event.angleDelta().y() or event.pixelDelta().y()
             if delta:
-                self._zoom(1.2 ** max(-5, min(5, delta / 120)))
+                self._zoom(1.2 ** max(-5, min(5, delta / 120)), event.position())
                 event.accept()
                 return True
         return super().eventFilter(watched, event)
