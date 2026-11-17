@@ -45,6 +45,17 @@
 
 ## 快速开始（Windows PowerShell）
 
+### 制作 Windows EXE
+
+在 Windows 64 位 Python 3.12 环境中执行：
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-build.txt
+.\.venv\Scripts\python.exe scripts\build_windows.py
+```
+
+输出位于 `dist/时间戳/litmgr/`，双击 `litmgr.exe` 启动。使用者无需安装 Python，分享时需复制整个 `litmgr` 文件夹（包括 `_internal`）。图标、离线公式资源及数据库迁移脚本随程序打包；论文库、个人配置和凭据不放进发布包。首次启动选择文献库，更新程序后可继续打开原文献库。
+
 准备 Python 3.12（64 位）和 Git。本仓库公开，可直接克隆；也可在 GitHub 点击 **Code → Download ZIP** 后解压。
 
 ```powershell

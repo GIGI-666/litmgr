@@ -28,6 +28,8 @@ Remove-Item Env:QTWEBENGINE_CHROMIUM_FLAGS -ErrorAction SilentlyContinue
 
 ## 二、目录和依赖方向
 
+Windows 发布包使用 `requirements-build.txt` 和 `scripts/build_windows.py` 构建，详见 README。新输出目录包含 `litmgr/litmgr.exe` 及其依赖。对冻结后的程序可运行 `litmgr.exe --check-bundle 报告绝对路径.json`，等待进程退出并检查退出码及 JSON 中所有值为 true；该检查只使用临时库，覆盖数据库迁移、图标、PDF 加载与渲染、WebEngine 离线公式。还需手动确认主窗口和实际阅读交互。发布时完整分发程序文件夹，不包含开发环境或个人文献库。
+
 ```text
 litmgr/
   core/       领域模型、字段类型、查询、事件、配置
