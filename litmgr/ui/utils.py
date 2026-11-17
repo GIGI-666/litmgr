@@ -122,7 +122,8 @@ class _ComboItemDelegate(QStyledItemDelegate):
         self.initStyleOption(opt, index)
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.fillRect(opt.rect, QColor("#ffffff"))
+        dark = bool(QApplication.instance().property("dark_mode"))
+        painter.fillRect(opt.rect, QColor("#202733" if dark else "#ffffff"))
         hovered = bool(opt.state & QStyle.StateFlag.State_MouseOver)
         selected = bool(opt.state & QStyle.StateFlag.State_Selected)
         enabled = bool(opt.state & QStyle.StateFlag.State_Enabled)
@@ -132,10 +133,10 @@ class _ComboItemDelegate(QStyledItemDelegate):
             painter.setBrush(QColor(0, 0, 0, 28))
             painter.drawRoundedRect(opt.rect.adjusted(6, 4, -4, -1), 4, 4)
             painter.setPen(QColor("#d4e3f6"))
-            painter.setBrush(QColor("#f4f8fd" if hovered else "#e7f0fb"))
+            painter.setBrush(QColor("#34475e" if dark else ("#f4f8fd" if hovered else "#e7f0fb")))
             painter.drawRoundedRect(opt.rect.adjusted(4, 2, -4, -2), 4, 4)
         text_rect = opt.rect.adjusted(12, 0, -10, 0)
-        painter.setPen(QColor("#222222" if enabled else "#999999"))
+        painter.setPen(QColor(("#dce3ed" if dark else "#222222") if enabled else "#999999"))
         painter.setFont(opt.font)
         text = opt.fontMetrics.elidedText(
             opt.text, Qt.TextElideMode.ElideRight, max(0, text_rect.width()))
@@ -155,9 +156,10 @@ class _ComboPopupFix(QObject):
         return False
 
 
-def apply_app_style(app: QApplication) -> None:
+def apply_app_style(app: QApplication, dark: bool = False) -> None:
     """浅色学术工作台：统一中文字体、清晰对比和舒适控件间距。"""
     app.setStyle("Fusion")
+    app.setProperty("dark_mode", dark)
     font = QFont("Microsoft YaHei UI", 11)
     app.setFont(font)
     palette = QPalette()
@@ -169,8 +171,17 @@ def apply_app_style(app: QApplication) -> None:
         palette.setColor(role, QColor(color))
     palette.setColor(QPalette.Disabled, QPalette.Text, QColor("#7a8493"))
     palette.setColor(QPalette.Disabled, QPalette.ButtonText, QColor("#7a8493"))
+    if dark:
+        for role, color in ((QPalette.Window, "#181e28"), (QPalette.WindowText, "#dce3ed"),
+                            (QPalette.Base, "#202733"), (QPalette.AlternateBase, "#252e3b"),
+                            (QPalette.Text, "#dce3ed"), (QPalette.Button, "#273141"),
+                            (QPalette.ButtonText, "#dce3ed"), (QPalette.Highlight, "#344e70"),
+                            (QPalette.HighlightedText, "#ffffff"), (QPalette.PlaceholderText, "#9ba9ba"),
+                            (QPalette.Dark, "#141922"), (QPalette.Shadow, "#10141b")):
+            palette.setColor(role, QColor(color))
     app.setPalette(palette)
-    app.setStyleSheet("""
+    style = """
+        QLabel#paperTitle { font-size: 16pt; font-weight: bold; color: #163f6b; padding: 6px 0; }
         QToolTip { background: #ffffff; color: #253247; border: 1px solid #cbd5e1; padding: 6px; }
         QPushButton { background: #ffffff; border: 1px solid #cbd5e1; border-radius: 5px;
                       padding: 5px 12px; min-height: 22px; }
@@ -210,7 +221,22 @@ def apply_app_style(app: QApplication) -> None:
         QComboBox QAbstractItemView::item:selected { background: transparent; color: #222; }
         QPlainTextEdit:focus, QLineEdit:focus { border: 1px solid #4a90e2; }
         QToolBar { spacing: 4px; }
-    """)
-    fixer = _ComboPopupFix(app)
-    app.installEventFilter(fixer)
-    app._litmgr_combo_fix = fixer  # 挂在 app 上，避免被回收
+    """
+    if dark:
+        # 保留同一套间距与交互样式，只替换语义相同的颜色。
+        import re
+        colors = {"#ffffff": "#202733", "#253247": "#dce3ed", "#163f6b": "#8fbfff",
+                  "#f3f5f8": "#181e28", "#cfe3ff": "#344e70", "#222": "#dce3ed"}
+        def replace_color(match):
+            color = match.group().lower()
+            if color in colors:
+                return colors[color]
+            return "#2b3544" if color.startswith(("#e", "#f")) else "#54667e"
+        style = re.sub(r"#[0-9a-fA-F]{3,6}\b", replace_color, style)
+        style = style.replace("background: white", "background: #202733").replace("color: black", "color: #eef4ff")
+        style += "QMenu { background: #202733; color: #dce3ed; } QMenu::item:selected { background: #344e70; }"
+    app.setStyleSheet(style)
+    if not hasattr(app, "_litmgr_combo_fix"):
+        fixer = _ComboPopupFix(app)
+        app.installEventFilter(fixer)
+        app._litmgr_combo_fix = fixer

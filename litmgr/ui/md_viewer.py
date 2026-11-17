@@ -23,7 +23,7 @@ from mdit_py_plugins.dollarmath import dollarmath_plugin
 from PySide6.QtCore import QTimer, QUrl
 from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget
 
 KATEX_DIR = Path(__file__).resolve().parent.parent / "assets" / "katex"
 
@@ -159,6 +159,24 @@ class MarkdownViewer(QWidget):
         self._frac_timer.timeout.connect(self._capture_frac)
         self.web.page().scrollPositionChanged.connect(lambda _p: self._frac_timer.start())
         self.web.loadFinished.connect(self._on_load_finished)
+        QApplication.instance().paletteChanged.connect(self._apply_theme)
+        self._apply_theme()
+
+    def _apply_theme(self, *_args) -> None:
+        """仅更新网页样式，保留当前滚动位置、字号和查找结果。"""
+        import json
+        from PySide6.QtGui import QColor
+        dark = bool(QApplication.instance().property("dark_mode"))
+        self.web.page().setBackgroundColor(QColor("#202733" if dark else "#ffffff"))
+        css = ("body{background:#202733!important;color:#dce3ed!important;}"
+               "h1,h2{border-color:#445269;}th{background:#2c384a;}"
+               "td,th{border-color:#526077;}code,pre{background:#2c384a;}"
+               "blockquote{color:#b6c5d8;border-color:#526077;}a{color:#8fbfff;}"
+               if dark else "")
+        self.web.page().runJavaScript(
+            "(function(){let s=document.getElementById('litmgr-theme');"
+            "if(!s){s=document.createElement('style');s.id='litmgr-theme';document.head.appendChild(s);}"
+            "s.textContent=" + json.dumps(css) + ";})()")
 
     # ---------- 阅读状态（供“阅读历史”保存/还原） ----------
     def get_state(self) -> dict:
@@ -179,6 +197,7 @@ class MarkdownViewer(QWidget):
             self._frac = float(value)
 
     def _on_load_finished(self, ok: bool) -> None:
+        self._apply_theme()
         frac, self._pending_frac = self._pending_frac, None
         if not ok or frac is None:
             return

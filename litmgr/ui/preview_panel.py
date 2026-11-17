@@ -45,17 +45,17 @@ class PreviewPanel(QWidget):
         if len(ids) == 1 and self.ctx.papers.exists(ids[0]):
             self.browser.setHtml(self._paper_html(ids[0]))
         elif len(ids) > 1:
-            self.browser.setHtml(f"<p style='color:#666'>已选中 <b>{len(ids)}</b> 篇论文。<br>"
+            self.browser.setHtml(f"<p>已选中 <b>{len(ids)}</b> 篇论文。<br>"
                                  "可右键批量操作，或点工具栏“对比选中论文”。</p>")
         else:
-            self.browser.setHtml("<p style='color:#888'>选中一篇论文查看预览；双击或回车打开详情。</p>")
+            self.browser.setHtml("<p>选中一篇论文查看预览；双击或回车打开详情。</p>")
 
     def _paper_html(self, paper_id: int) -> str:
         p = self.ctx.papers.get(paper_id)
         tags = "、".join(t.name for t in self.ctx.organize.tags_of(paper_id)) or "无"
         cols = "、".join(c.name for c in self.ctx.organize.collections_of(paper_id)) or "无"
         parts = [f"<h3>{h.escape(p.title)}</h3>",
-                 f"<p style='color:#666'>{READ_STATUS.get(p.read_status, '')}　"
+                 f"<p>{READ_STATUS.get(p.read_status, '')}　"
                  f"{'★' * p.rating}{'☆' * (5 - p.rating)}"
                  f"<br>标签：{h.escape(tags)}　分组：{h.escape(cols)}</p>"]
         for f in self.ctx.fields.list():

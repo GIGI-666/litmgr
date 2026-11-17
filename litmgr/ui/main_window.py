@@ -40,7 +40,7 @@ from .paper_actions import PaperActions
 from .paper_table import PaperTable
 from .preview_panel import PreviewPanel
 from .recent_menu import RecentReadingMenu
-from .utils import EventSubscriberMixin, guarded, make_button
+from .utils import EventSubscriberMixin, apply_app_style, guarded, make_button
 
 STATE_KEY = "main_window"      # 在 AppConfig.ui_state 里存放本窗口状态的键
 
@@ -116,6 +116,11 @@ class MainWindow(EventSubscriberMixin, QMainWindow):
         self.a_reindex = act("重建全文索引", self.reindex)
         self.a_about = act("关于", self.about)
         self.a_quit = act("退出", QApplication.instance().closeAllWindows, "Ctrl+Q")
+        self.a_dark = QAction("深夜模式（程序员模式）", self)
+        self.a_dark.setCheckable(True)
+        self.a_dark.setChecked(bool(QApplication.instance().property("dark_mode")))
+        self.a_dark.triggered.connect(lambda checked: self._toggle_dark(checked))
+        QApplication.instance().paletteChanged.connect(self._sync_dark_action)
 
         # “最近阅读”菜单：文件菜单与工具栏共用同一个菜单对象
         self.recent = RecentReadingMenu(self, self.ctx, self.windows)
@@ -133,6 +138,7 @@ class MainWindow(EventSubscriberMixin, QMainWindow):
         m = mb.addMenu("工具(&T)")
         m.addAction(self.a_fields)
         m.addAction(self.a_reindex)
+        m.addAction(self.a_dark)
         m = mb.addMenu("帮助(&H)")
         m.addAction(self.a_about)
 
@@ -143,6 +149,18 @@ class MainWindow(EventSubscriberMixin, QMainWindow):
                   self.a_new_main):
             tb.addAction(a)
         tb.addWidget(self.recent.make_tool_button())
+        tb.addAction(self.a_dark)
+
+    def _sync_dark_action(self, *_args) -> None:
+        self.a_dark.setChecked(bool(QApplication.instance().property("dark_mode")))
+
+    @guarded
+    def _toggle_dark(self, checked: bool) -> None:
+        """立即切换全部窗口的主题并保存偏好。"""
+        config = self.config if self.config is not None else AppConfig.load()
+        config.dark_mode = checked
+        config.save()
+        apply_app_style(QApplication.instance(), checked)
 
     def _build_ui(self) -> None:
         split = QSplitter(Qt.Horizontal)

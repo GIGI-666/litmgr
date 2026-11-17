@@ -244,6 +244,7 @@ class CompareWindow(EventSubscriberMixin, QMainWindow):
                     it.setTextAlignment(Qt.AlignLeft | Qt.AlignTop)
                     if not row.all_same:
                         it.setBackground(DIFF_BG)
+                        it.setForeground(QBrush(QColor("#253247")))
                     self.table.setItem(r, c, it)
             self.table.resizeRowsToContents()
             for r in range(self.table.rowCount()):

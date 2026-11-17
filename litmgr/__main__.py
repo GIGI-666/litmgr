@@ -88,7 +88,8 @@ def main(argv: list[str] | None = None) -> int:
     app = QApplication(sys.argv[:1])
     app.setApplicationName(APP_NAME)
     configure_app_icon(app)
-    apply_app_style(app)
+    config = AppConfig.load()
+    apply_app_style(app, config.dark_mode)
 
     def excepthook(exc_type, exc, tb) -> None:
         logging.error("未捕获异常\n%s", "".join(traceback.format_exception(exc_type, exc, tb)))

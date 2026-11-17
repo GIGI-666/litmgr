@@ -15,7 +15,7 @@ from typing import Callable
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QMenu, QTableView
+from PySide6.QtWidgets import QApplication, QAbstractItemView, QHeaderView, QMenu, QTableView
 
 from ..core.models import READ_STATUS, ROLE_TITLE, Paper
 from ..services.app_context import AppContext
@@ -90,6 +90,8 @@ class PaperTableModel(QAbstractTableModel):
         if role == Qt.ToolTipRole:
             return self._text(p, key)[:1500] or None
         if role == Qt.ForegroundRole and key == "status":
+            if QApplication.instance().property("dark_mode"):
+                return QColor({"unread": "#aab6c5", "reading": "#ffbd80", "read": "#81d4a2", "deep": "#8fbfff"}.get(p.read_status, "#dce3ed"))
             return _STATUS_BRUSHES.get(p.read_status, _BLACK)
         if role == Qt.ForegroundRole and key == "rating":
             return _RATING_COLOR

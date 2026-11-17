@@ -53,6 +53,67 @@ def _make_pdf(path, pages=5):
 
 
 # ---------- bug 1：PDF 内搜索 ----------
+def test_dark_mode_persists_and_updates_multiple_windows(app, ctx, tmp_path, monkeypatch):
+    """主题切换立即作用于多个窗口，重启配置可恢复，切回浅色仍正常。"""
+    from litmgr.core.config import AppConfig
+    from litmgr.ui.utils import apply_app_style
+    from litmgr.ui.window_manager import WindowManager
+    monkeypatch.setenv("LITMGR_HOME", str(tmp_path / "config"))
+    config = AppConfig()
+    def fail_dialog(*args, **kwargs):
+        pytest.fail(str(args))
+    monkeypatch.setattr("litmgr.ui.utils.show_error", fail_dialog)
+    windows = WindowManager(ctx)
+    apply_app_style(app)
+    first = windows.open_main(config)
+    second = windows.open_main(config)
+    try:
+        first.a_dark.trigger()
+        assert app.property("dark_mode") is True
+        assert second.a_dark.isChecked()
+        assert AppConfig.load().dark_mode is True
+        assert app.palette().base().color().lightness() < 128
+        second.a_dark.trigger()
+        assert not first.a_dark.isChecked()
+        assert AppConfig.load().dark_mode is False
+        assert app.palette().base().color().lightness() > 128
+    finally:
+        windows.close_all()
+        apply_app_style(app)
+
+
+def test_markdown_dark_theme_updates_without_reload(app):
+    """已加载译文即时换色，公式仍存在且字号不重置。"""
+    from litmgr.ui.md_viewer import MarkdownViewer
+    from litmgr.ui.utils import apply_app_style
+    viewer = MarkdownViewer()
+    loaded = []
+    viewer.web.loadFinished.connect(loaded.append)
+    viewer.load_text("# 夜间阅读测试\n\n$x^2$\n")
+    try:
+        for _ in range(100):
+            QTest.qWait(30)
+            if loaded:
+                break
+        assert loaded and loaded[-1]
+        viewer.web.setZoomFactor(1.3)
+        apply_app_style(app, True)
+        result = []
+        viewer.web.page().runJavaScript(
+            "getComputedStyle(document.body).backgroundColor === 'rgb(32, 39, 51)'"
+            " && !!document.querySelector('.katex')", result.append)
+        for _ in range(100):
+            QTest.qWait(20)
+            if result:
+                break
+        assert result == [True]
+        assert len(loaded) == 1
+        assert viewer.web.zoomFactor() == pytest.approx(1.3)
+    finally:
+        apply_app_style(app)
+        viewer.close()
+
+
 def test_pdf_search_works(app, tmp_path):
     from litmgr.ui.pdf_viewer import PdfViewer
     pdf = tmp_path / "s.pdf"
