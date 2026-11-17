@@ -37,12 +37,14 @@ _PAGE = """<!doctype html>
 <html><head><meta charset="utf-8">
 <link rel="stylesheet" href="{katex_css}">
 <style>
-  body {{ font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif; line-height: 1.75;
-         max-width: 920px; margin: 0 auto; padding: 18px 26px 80px; color: #222; }}
+  body {{ font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif; font-size: 18px; line-height: 1.7;
+         max-width: 920px; margin: 0 auto; padding: 22px 28px 80px; color: #253247; background: #fff; }}
+  p {{ margin: 0 0 1em; }}
   h1, h2, h3, h4 {{ line-height: 1.35; margin: 1.4em 0 .6em; }}
   h1 {{ font-size: 1.6em; border-bottom: 2px solid #e3e7ee; padding-bottom: .25em; }}
   h2 {{ font-size: 1.35em; border-bottom: 1px solid #e3e7ee; padding-bottom: .2em; }}
-  table {{ border-collapse: collapse; margin: 1em 0; font-size: .95em; }}
+  table {{ display: block; max-width: 100%; overflow-x: auto;
+           border-collapse: collapse; margin: 1em 0; font-size: .95em; }}
   th, td {{ border: 1px solid #ccd3de; padding: 5px 10px; }}
   th {{ background: #f1f4f9; }}
   code {{ background: #f3f4f6; padding: 1px 4px; border-radius: 3px; }}
@@ -83,7 +85,7 @@ def build_page(text: str) -> str:
 
 
 _CACHE_PREFIX = "page_"
-_CACHE_VERSION = "v1|"      # 页面模板/渲染方式变化时改动，使旧缓存自动失效
+_CACHE_VERSION = "v2|"      # 页面模板/渲染方式变化时改动，使旧缓存自动失效
 _CACHE_KEEP = 40            # 最多保留多少个缓存页面
 
 
@@ -131,6 +133,7 @@ class MarkdownViewer(QWidget):
         self.find_edit = QLineEdit()
         self.find_edit.setPlaceholderText("在翻译中查找（回车下一个）")
         self.find_edit.setMaximumWidth(260)
+        self.find_edit.setMinimumWidth(180)
         self.find_edit.returnPressed.connect(lambda: self.find(True))
         prev_b, next_b = QPushButton("↑"), QPushButton("↓")
         prev_b.clicked.connect(lambda: self.find(False))

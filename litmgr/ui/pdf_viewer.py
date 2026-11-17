@@ -46,21 +46,30 @@ class PdfViewer(QWidget):
         for text, fn, tip in (("－", self.zoom_out, "缩小"), ("＋", self.zoom_in, "放大"),
                               ("适应宽度", self.fit_width, "适应窗口宽度并居中；Ctrl＋滚轮缩放"), ("整页", self.fit_page, "")):
             bar.addWidget(make_button(text, fn, tip))
+        self.zoom_label = QLabel()
+        bar.addWidget(self.zoom_label)
         bar.addStretch(1)
+        lay.addLayout(bar)
+        search_bar = QHBoxLayout()
         self.search_edit = QLineEdit()
         self.search_edit.setPlaceholderText("在 PDF 中搜索（回车）")
         self.search_edit.setMaximumWidth(220)
+        self.search_edit.setMinimumWidth(180)
         self.search_edit.returnPressed.connect(self._search)
         self.search_info = QLabel("")
         prev_b, next_b = QPushButton("↑"), QPushButton("↓")
         prev_b.clicked.connect(lambda: self._goto_hit(-1))
         next_b.clicked.connect(lambda: self._goto_hit(+1))
         for w in (self.search_edit, prev_b, next_b, self.search_info):
-            bar.addWidget(w)
-        lay.addLayout(bar)
+            search_bar.addWidget(w)
+        search_bar.addStretch(1)
+        lay.addLayout(search_bar)
         lay.addWidget(self.view, 1)
 
         self.view.pageNavigator().currentPageChanged.connect(self._on_page_changed)
+        self.view.zoomModeChanged.connect(self._update_zoom_label)
+        self.view.zoomFactorChanged.connect(self._update_zoom_label)
+        self._update_zoom_label()
         for key, callback in (("Ctrl+=", self.zoom_in), ("Ctrl++", self.zoom_in),
                               ("Ctrl+-", self.zoom_out), ("Ctrl+0", self.fit_width)):
             shortcut = QShortcut(QKeySequence(key), self)
@@ -99,6 +108,12 @@ class PdfViewer(QWidget):
 
     def zoom_out(self) -> None:
         self._zoom(1 / 1.2)
+
+    def _update_zoom_label(self, *_args) -> None:
+        mode = self.view.zoomMode()
+        text = {QPdfView.ZoomMode.FitToWidth: "适应宽度",
+                QPdfView.ZoomMode.FitInView: "整页"}.get(mode)
+        self.zoom_label.setText(text or f"{self.view.zoomFactor():.0%}")
 
     def _effective_zoom(self) -> float:
         # Qt 的 fit 模式不会更新 zoomFactor，按当前页和视口计算实际显示比例。

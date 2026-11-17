@@ -44,7 +44,7 @@ class DetailWindow(EventSubscriberMixin, QMainWindow):
         # 顶部：标题与操作
         self.title_label = QLabel()
         self.title_label.setWordWrap(True)
-        self.title_label.setStyleSheet("font-size: 16px; font-weight: bold;")
+        self.title_label.setStyleSheet("font-size: 16pt; font-weight: bold; color: #163f6b; padding: 6px 0;")
         self.title_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         lay.addWidget(self.title_label)
 

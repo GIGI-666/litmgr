@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Callable
 
 from PySide6.QtCore import QEvent, QObject, Qt, QUrl
-from PySide6.QtGui import QColor, QDesktopServices, QFont, QPainter
+from PySide6.QtGui import QColor, QDesktopServices, QFont, QPainter, QPalette
 from PySide6.QtWidgets import (QApplication, QComboBox, QHBoxLayout, QMessageBox, QPushButton,
                                QStyle, QStyleOptionViewItem, QStyledItemDelegate, QWidget)
 
@@ -156,22 +156,49 @@ class _ComboPopupFix(QObject):
 
 
 def apply_app_style(app: QApplication) -> None:
-    """全局字体与样式：中文友好、紧凑、表格行交替色。"""
+    """浅色学术工作台：统一中文字体、清晰对比和舒适控件间距。"""
     app.setStyle("Fusion")
-    font = QFont("Microsoft YaHei UI", 10)
+    font = QFont("Microsoft YaHei UI", 11)
     app.setFont(font)
+    palette = QPalette()
+    for role, color in ((QPalette.Window, "#f3f5f8"), (QPalette.WindowText, "#253247"),
+                        (QPalette.Base, "#ffffff"), (QPalette.AlternateBase, "#f8fafc"),
+                        (QPalette.Text, "#253247"), (QPalette.Button, "#ffffff"),
+                        (QPalette.ButtonText, "#253247"), (QPalette.Highlight, "#dce9f7"),
+                        (QPalette.HighlightedText, "#163f6b")):
+        palette.setColor(role, QColor(color))
+    palette.setColor(QPalette.Disabled, QPalette.Text, QColor("#7a8493"))
+    palette.setColor(QPalette.Disabled, QPalette.ButtonText, QColor("#7a8493"))
+    app.setPalette(palette)
     app.setStyleSheet("""
+        QToolTip { background: #ffffff; color: #253247; border: 1px solid #cbd5e1; padding: 6px; }
+        QPushButton { background: #ffffff; border: 1px solid #cbd5e1; border-radius: 5px;
+                      padding: 5px 12px; min-height: 22px; }
+        QPushButton:hover { background: #eef4fb; border-color: #8daacb; }
+        QPushButton:pressed { background: #dce9f7; }
+        QPushButton:focus { border-color: #34699b; }
+        QPushButton:disabled { color: #7a8493; background: #f3f5f8; }
+        QTabWidget::pane { background: white; border: 1px solid #dce2ea; }
+        QTabBar::tab { padding: 8px 18px; color: #536176; }
+        QTabBar::tab:selected { background: white; color: #163f6b; }
+        QTreeView, QTableView { background: white; border: 1px solid #e1e6ed; }
+        QTreeView::item { padding: 5px 2px; }
+        QSplitter::handle { background: #e6ebf1; }
+        QToolBar { background: #f3f5f8; border: none; padding: 5px; }
+        QToolButton { padding: 6px 9px; border-radius: 4px; }
+        QToolButton:hover { background: #dce9f7; }
         QTableView { alternate-background-color: #f6f8fb; gridline-color: #e3e7ee; }
         QTableView::item:selected { background: #cfe3ff; color: black; }
-        QHeaderView::section { background: #eef1f6; padding: 4px 6px; border: 0;
+        QHeaderView::section { background: #eef1f6; padding: 8px 10px; border: 0;
                                border-right: 1px solid #dde2ea; border-bottom: 1px solid #dde2ea; }
-        QGroupBox { font-weight: bold; border: 1px solid #d6dbe4; border-radius: 4px;
+        QGroupBox { border: 1px solid #d6dbe4; border-radius: 5px;
                     margin-top: 10px; padding-top: 8px; }
-        QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }
+        QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px;
+                           color: #163f6b; font-weight: bold; }
         QPlainTextEdit, QLineEdit { border: 1px solid #c9d0db; border-radius: 3px;
-                                    padding: 2px 4px; background: white; }
+                                    padding: 5px 7px; background: white; }
         QComboBox { border: 1px solid #c9d0db; border-radius: 3px;
-                    padding: 2px 8px 2px 6px; background: white; color: #222; }
+                    padding: 5px 8px 5px 6px; background: white; color: #222; }
         QComboBox:focus { border: 1px solid #4a90e2; }
         QComboBox QAbstractItemView { background: white; color: #222; outline: 0;
                                       border: 1px solid #d0d7e2;
