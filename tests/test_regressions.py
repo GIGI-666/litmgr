@@ -72,6 +72,47 @@ def test_pdf_search_works(app, tmp_path):
 
 
 # ---------- bug 2：从旧版本备份恢复 ----------
+def test_pdf_fit_width_and_ctrl_wheel(app, tmp_path):
+    """适应宽度随窗口变化，Ctrl 滚轮从可见比例缩放，切换文件重置布局。"""
+    from PySide6.QtCore import QPoint, QPointF
+    from PySide6.QtGui import QWheelEvent
+    from PySide6.QtPdfWidgets import QPdfView
+    from litmgr.ui.pdf_viewer import PdfViewer
+
+    pdf = tmp_path / "zoom.pdf"
+    _make_pdf(pdf)
+    v = PdfViewer()
+    v.resize(1000, 600)
+    v.show()
+    try:
+        assert v.load(str(pdf))
+        QTest.qWait(100)
+        initial = v._effective_zoom()
+        v.resize(1200, 600)
+        QTest.qWait(100)
+        assert v._effective_zoom() > initial
+        initial = v._effective_zoom()
+        viewport = v.view.viewport()
+        event = QWheelEvent(QPointF(150, 150), QPointF(150, 150), QPoint(),
+                            QPoint(0, 120), Qt.NoButton, Qt.ControlModifier,
+                            Qt.ScrollPhase.NoScrollPhase, False)
+        QApplication.sendEvent(viewport, event)
+        assert v.view.zoomMode() == QPdfView.ZoomMode.Custom
+        assert v.view.zoomFactor() == pytest.approx(initial * 1.2)
+        v.zoom_out()
+        assert v.view.zoomFactor() == pytest.approx(initial)
+        v.zoom_in()
+        v.fit_width()
+        QTest.qWait(100)
+        assert v.view.zoomMode() == QPdfView.ZoomMode.FitToWidth
+        assert v.view.horizontalScrollBar().maximum() == 0
+        v.zoom_in()
+        assert v.load(str(pdf))
+        assert v.view.zoomMode() == QPdfView.ZoomMode.FitToWidth
+    finally:
+        v.close()
+
+
 def test_restore_old_schema_backup(ctx, tmp_path):
     ctx.papers.create({_title(ctx).id: "A"})
     old = tmp_path / "old.db"

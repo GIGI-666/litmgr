@@ -8,7 +8,8 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QModelIndex, QPointF, Qt, QTimer
+from PySide6.QtCore import QEvent, QModelIndex, QPointF, Qt, QTimer
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtPdf import QPdfDocument, QPdfSearchModel
 from PySide6.QtPdfWidgets import QPdfView
 from PySide6.QtWidgets import (QHBoxLayout, QLabel, QLineEdit, QPushButton, QSpinBox,
@@ -25,6 +26,7 @@ class PdfViewer(QWidget):
         self.view.setDocument(self.doc)
         self.view.setPageMode(QPdfView.PageMode.MultiPage)
         self.view.setZoomMode(QPdfView.ZoomMode.FitToWidth)
+        self.view.viewport().installEventFilter(self)
         self.search_model = QPdfSearchModel(self)
         self.search_model.setDocument(self.doc)
         self.view.setSearchModel(self.search_model)
@@ -42,7 +44,7 @@ class PdfViewer(QWidget):
         bar.addWidget(self.page_spin)
         bar.addWidget(self.page_total)
         for text, fn, tip in (("－", self.zoom_out, "缩小"), ("＋", self.zoom_in, "放大"),
-                              ("适应宽度", self.fit_width, ""), ("整页", self.fit_page, "")):
+                              ("适应宽度", self.fit_width, "适应窗口宽度并居中；Ctrl＋滚轮缩放"), ("整页", self.fit_page, "")):
             bar.addWidget(make_button(text, fn, tip))
         bar.addStretch(1)
         self.search_edit = QLineEdit()
@@ -73,6 +75,8 @@ class PdfViewer(QWidget):
         self.page_spin.blockSignals(False)
         self.page_total.setText(f"/ {n}")
         self.search_info.setText("" if ok else "无法打开此 PDF")
+        if ok:
+            self.fit_width()
         return ok
 
     # ---------- 翻页与缩放 ----------
@@ -85,15 +89,48 @@ class PdfViewer(QWidget):
         self.page_spin.blockSignals(False)
 
     def zoom_in(self) -> None:
-        self.view.setZoomMode(QPdfView.ZoomMode.Custom)
-        self.view.setZoomFactor(self.view.zoomFactor() * 1.2)
+        self._zoom(1.2)
 
     def zoom_out(self) -> None:
+        self._zoom(1 / 1.2)
+
+    def _effective_zoom(self) -> float:
+        # Qt 的 fit 模式不会更新 zoomFactor，按当前页和视口计算实际显示比例。
+        mode = self.view.zoomMode()
+        if mode == QPdfView.ZoomMode.Custom or not self.doc.pageCount():
+            return self.view.zoomFactor()
+        page = max(0, self.view.pageNavigator().currentPage())
+        size = (self.doc.pagePointSize(page) *
+                (QGuiApplication.primaryScreen().logicalDotsPerInch() / 72)).toSize()
+        margins = self.view.documentMargins()
+        width = max(1, self.view.viewport().width() - margins.left() - margins.right())
+        scale = width / max(1, size.width())
+        if mode == QPdfView.ZoomMode.FitInView:
+            height = max(1, self.view.viewport().height() - margins.top() - self.view.pageSpacing())
+            scale = min(scale, height / max(1, size.height()))
+        return scale
+
+    def _zoom(self, factor: float) -> None:
+        if not self.doc.pageCount():
+            return
+        zoom = max(0.1, min(5.0, self._effective_zoom() * factor))
         self.view.setZoomMode(QPdfView.ZoomMode.Custom)
-        self.view.setZoomFactor(self.view.zoomFactor() / 1.2)
+        self.view.setZoomFactor(zoom)
+
+    def eventFilter(self, watched, event) -> bool:
+        """仅在 PDF 视口内拦截 Ctrl＋滚轮，普通滚轮仍交给阅读器滚动。"""
+        if (watched is self.view.viewport() and event.type() == QEvent.Type.Wheel
+                and event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+            delta = event.angleDelta().y() or event.pixelDelta().y()
+            if delta:
+                self._zoom(1.2 ** max(-5, min(5, delta / 120)))
+                event.accept()
+                return True
+        return super().eventFilter(watched, event)
 
     def fit_width(self) -> None:
         self.view.setZoomMode(QPdfView.ZoomMode.FitToWidth)
+        self.view.horizontalScrollBar().setValue(0)
 
     def fit_page(self) -> None:
         self.view.setZoomMode(QPdfView.ZoomMode.FitInView)
