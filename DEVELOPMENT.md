@@ -88,6 +88,7 @@ shared_library/  交接的完整文献库快照
 - `references/litmgr-format.md`：导入兼容约定。
 - `assets/card-template.txt`：初始模板快照；实际使用优先读当次模板。
 - `scripts/paper_bundle.py`：标准库工具，负责快照、分段登记、卡片和最终文件包，不调用模型 API。
+- `scripts/import_bundle.py`：使用 litmgr 环境读取当前库配置，取得同库锁后调用 ImportService，返回论文 ID 并核验关联文件。当前库已打开时技能使用桌面导入向导。
 - 新任务名称由 `--title-zh` 自动生成，使用从 PDF 正文题名翻译出的完整中文标题；输入下载名不参与命名，也不额外加 arXiv 编号或年月。保留翻译 MD 和卡片 TXT 格式；`--stem` 可省略，提供不同前缀会被拒绝。
 - `agents/openai.yaml`：显示名称与默认请求。
 
