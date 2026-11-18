@@ -1,6 +1,6 @@
 [project]
 name = "litmgr"
-version = "0.1.0"
+version = "1.1.5"
 description = "个人文献管理系统（本地单机、离线）"
 requires-python = ">=3.10"
 dependencies = [

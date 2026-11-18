@@ -39,13 +39,18 @@ def _choose_library(config: AppConfig, cli_path: str | None) -> Path | None:
     """确定要打开的文献库：命令行 > 配置里上次使用的 > 弹窗选择。"""
     if cli_path:
         return Path(cli_path)
-    if config.library_path and Path(config.library_path).parent.exists():
-        return Path(config.library_path)
-    QMessageBox.information(
-        None, APP_NAME,
-        "欢迎使用！请选择一个文件夹作为“文献库”。\n"
-        "论文的 PDF、翻译、数据库都会保存在这个文件夹里，\n"
-        "以后复制整个文件夹就能备份或迁移。\n\n（可以选一个新建的空文件夹）")
+    if config.library_path:
+        previous = Path(config.library_path)
+        if (previous / "db" / "litmgr.db").is_file():
+            return previous
+        QMessageBox.warning(None, APP_NAME,
+                            f"无法找到上次使用的文献库：\n{previous}\n\n请选择原文献库的新位置，或明确选择空文件夹建立新库。")
+    else:
+        QMessageBox.information(
+            None, APP_NAME,
+            "欢迎使用！请选择一个文件夹作为“文献库”。\n"
+            "论文的 PDF、翻译、数据库都会保存在这个文件夹里，\n"
+            "以后复制整个文件夹就能备份或迁移。\n\n（可以选一个新建的空文件夹）")
     d = QFileDialog.getExistingDirectory(None, "选择文献库文件夹", str(Path.home() / "Documents"))
     return Path(d) if d else None
 
@@ -97,13 +102,11 @@ def main(argv: list[str] | None = None) -> int:
 
     sys.excepthook = excepthook
 
-    config = AppConfig.load()
     library = _choose_library(config, args.library)
     if library is None:
         return 0
+    library = library.resolve()
     library.mkdir(parents=True, exist_ok=True)
-    config.remember_library(str(library))
-    config.save()
 
     # 单实例保护：同一个文献库同时只允许一个程序打开（各程序的界面不会互相同步，容易混乱）。
     # 程序异常退出遗留的锁文件，QLockFile 会自动判断为失效并接管。
@@ -113,6 +116,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     ctx = AppContext(library)
+    config.remember_library(str(library))
+    config.save()
     try:
         if config.auto_backup:
             ctx.backup.auto_backup(keep=config.backup_keep)

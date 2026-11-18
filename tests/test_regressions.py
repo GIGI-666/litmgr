@@ -36,6 +36,133 @@ def ctx(tmp_path):
     c.close()
 
 
+def test_missing_remembered_library_opens_picker(monkeypatch, tmp_path):
+    """旧路径仍有父目录时，也必须提醒用户重新选择。"""
+    from litmgr import __main__ as entry
+    from litmgr.core.config import AppConfig
+    missing = tmp_path / "moved"
+    chosen = tmp_path / "found"
+    warnings = []
+    monkeypatch.setattr(entry.QMessageBox, "warning", lambda *args: warnings.append(args[-1]))
+    monkeypatch.setattr(entry.QFileDialog, "getExistingDirectory", lambda *_: str(chosen))
+    assert entry._choose_library(AppConfig(library_path=str(missing)), None) == chosen
+    assert str(missing) in warnings[0]
+    assert not missing.exists()
+
+
+@pytest.mark.parametrize("frozen", [False, True])
+def test_switch_library_uses_correct_entrypoint(app, ctx, tmp_path, monkeypatch, frozen):
+    """分别验证源码和打包启动参数，进程创建失败时不关主窗口。"""
+    from litmgr.ui import main_window
+    from litmgr.ui.window_manager import WindowManager
+    target = tmp_path / "new library"
+    calls = []
+    warnings = []
+    monkeypatch.setattr(main_window.sys, "frozen", frozen, raising=False)
+    monkeypatch.setattr(main_window.QFileDialog, "getExistingDirectory", lambda *_: str(target))
+    monkeypatch.setattr(main_window.QMessageBox, "warning", lambda *args: warnings.append(args[-1]))
+    monkeypatch.setattr(main_window.QProcess, "startDetached",
+                        lambda exe, args: (calls.append(args) or False, -1))
+    windows = WindowManager(ctx)
+    win = windows.open_main()
+    try:
+        win.switch_library()
+        prefix = [] if frozen else ["-m", "litmgr"]
+        assert calls == [[*prefix, "--library", str(target)]]
+        assert warnings and win.isVisible()
+    finally:
+        windows.close_all()
+
+
+def test_reopen_detail_keeps_maximized(app, ctx):
+    from litmgr.ui.window_manager import WindowManager
+    pid = ctx.papers.create({_title(ctx).id: "窗口复用"})
+    windows = WindowManager(ctx)
+    win = windows.open_detail(pid)
+    try:
+        win.showMaximized()
+        assert windows.open_detail(pid) is win
+        assert win.isMaximized()
+    finally:
+        windows.close_all()
+
+
+def test_search_loads_only_matching_papers(ctx, monkeypatch):
+    from litmgr.core.query import SearchQuery
+    match = ctx.papers.create({_title(ctx).id: "zebra target"})
+    ctx.papers.create({_title(ctx).id: "unrelated"})
+    repo = ctx.papers.papers
+    real = repo.load_papers
+    calls = []
+
+    def record(ids=None, **kwargs):
+        calls.append(ids)
+        return real(ids, **kwargs)
+
+    monkeypatch.setattr(repo, "load_papers", record)
+    assert [p.id for p in ctx.search.run(SearchQuery(text="zebra zebra"))] == [match]
+    assert calls == [[match]]
+    assert ctx.search.run(SearchQuery(text="no match")) == []
+    assert calls == [[match]]
+
+
+def test_skipped_card_does_not_create_field(ctx, tmp_path):
+    from litmgr.core.textutil import normalize_label
+    from litmgr.services.import_service import ACT_NEW, LabelDecision
+    src = tmp_path / "skip.pdf"
+    src.write_bytes(b"%PDF-1.4 test")
+    card = tmp_path / "skip论文卡片.txt"
+    card.write_text("中文标题：跳过这篇\n独有字段：文字\n", encoding="utf-8")
+    plan = ctx.imports.build_plan([src, card])
+    assert len(plan.items) == 1
+    assert any(label.label == "独有字段" for label in plan.unknown)
+    plan.items[0].action = "skip"
+    before = [field.id for field in ctx.fields.list()]
+    result = ctx.imports.execute(plan, {normalize_label("独有字段"): LabelDecision(ACT_NEW)})
+    assert result.skipped == 1 and not result.created
+    assert [field.id for field in ctx.fields.list()] == before
+
+
+def test_compare_markdown_escapes_every_column(tmp_path):
+    from litmgr.core.models import FieldDef, Paper
+    from litmgr.services.compare_service import CompareRow, CompareTable
+    from litmgr.services.export_service import ExportService
+    from litmgr.ui.md_viewer import render_markdown
+    field = FieldDef(id=1, name="方法|指标")
+    paper = Paper(id=1, title="标题|来源")
+    table = CompareTable([paper], [CompareRow(field, ["x\\|y\r\n<2"], False, False)])
+    target = ExportService.export_compare(table, tmp_path / "compare.md", "md")
+    rendered = render_markdown(target.read_text(encoding="utf-8"))
+    assert rendered.count("<th>") == 2
+    assert rendered.count("<td>") == 2
+    assert "x\\|y<br>&lt;2" in rendered
+
+
+def test_rapid_backups_create_independent_snapshots(ctx):
+    before = ctx.backup.backup_now("manual")
+    ctx.papers.create({_title(ctx).id: "第二份备份新增"})
+    after = ctx.backup.backup_now("manual")
+    assert before != after
+    for path, expected in ((before, 0), (after, 1)):
+        from contextlib import closing
+        with closing(sqlite3.connect(path)) as conn:
+            assert conn.execute("SELECT count(*) FROM paper").fetchone()[0] == expected
+
+
+def test_invalid_backup_never_replaces_current_database(ctx, tmp_path):
+    from contextlib import closing
+    from litmgr.core.errors import ValidationError
+    pid = ctx.papers.create({_title(ctx).id: "保留在当前库"})
+    invalid = tmp_path / "invalid.db"
+    version = ctx.db.query_one("PRAGMA user_version")[0]
+    with closing(sqlite3.connect(invalid)) as conn:
+        conn.execute(f"PRAGMA user_version={version}")
+    with pytest.raises(ValidationError):
+        ctx.backup.restore(invalid)
+    assert ctx.papers.get(pid).title == "保留在当前库"
+    assert not ctx.backup.list_backups()
+
+
 def _title(ctx):
     return ctx.fields.by_role("title")
 
@@ -130,6 +257,50 @@ def test_pdf_search_works(app, tmp_path):
     QTest.qWait(100)
     assert v.search_info.text().startswith("1/")
     v._goto_hit(+1)                   # 翻到下一个结果也不应报错
+    v.search_edit.setText("词语不存在")
+    v._search()
+    for _ in range(40):
+        QTest.qWait(25)
+        if v.search_info.text() == "无结果":
+            break
+    assert v.search_info.text() == "无结果"
+    v.search_edit.clear()
+    v._search()
+    assert v.search_info.text() == ""
+    v.close()
+
+
+def test_reader_switch_pdf_keeps_each_location(app, ctx, tmp_path):
+    """快速切换补充材料时，不执行前一份 PDF 的延迟跳页。"""
+    from litmgr.core.models import KIND_PDF
+    from litmgr.ui.window_manager import WindowManager
+    pid = ctx.papers.create({_title(ctx).id: "两份 PDF"})
+    pdfs = []
+    for name in ("main.pdf", "appendix.pdf"):
+        pdf = tmp_path / name
+        _make_pdf(pdf)
+        pdfs.append(ctx.files.add(pid, KIND_PDF, pdf))
+    main, appendix = pdfs
+    windows = WindowManager(ctx)
+    win = windows.open_reader(pid, main.id)
+    try:
+        QTest.qWait(100)
+        win.pdf.zoom_in()
+        win.pdf.page_spin.setValue(3)
+        win.show_file(appendix.id)
+        win.pdf.page_spin.setValue(2)
+        win.show_file(main.id)
+        assert win.pdf.get_state()["page"] == 2
+        win.show_file(appendix.id)
+        QTest.qWait(350)
+        assert win.pdf.page_spin.value() == 2
+        assert win.pdf.get_state()["zoom_mode"] == "FitToWidth"
+        win.show_file(main.id)
+        QTest.qWait(350)
+        assert win.pdf.page_spin.value() == 3
+        assert win.pdf.get_state()["zoom_mode"] == "Custom"
+    finally:
+        windows.close_all()
 
 
 # ---------- bug 2：从旧版本备份恢复 ----------

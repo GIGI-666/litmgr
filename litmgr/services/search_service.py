@@ -46,30 +46,33 @@ class SearchService:
         needed.update(c.field_id for c in q.conditions)
         if q.sort_key.startswith("f:"):
             needed.add(int(q.sort_key[2:]))
-        papers = self.papers.list_all(include_archived=q.include_archived, field_ids=needed)
+        # 先用索引缩小候选范围，再读取候选论文及字段值。
+        candidates: set[int] | None = None
 
-        # 1) 文本搜索：每个词都必须命中（交集）
+        def intersect(ids: set[int]) -> None:
+            nonlocal candidates
+            candidates = ids if candidates is None else candidates & ids
+
         tokens = q.text.split()
         if tokens:
             if q.scope_field_ids is None:
                 scope = list(active)
             else:
                 scope = [fid for fid in q.scope_field_ids if fid in active]
-            ids: set[int] | None = None
-            for tok in tokens:
-                hit = self.search.paper_ids_matching(
+            for tok in dict.fromkeys(tokens):
+                intersect(self.search.paper_ids_matching(
                     tok, scope, include_files=q.include_fulltext,
-                    include_notes=q.include_fulltext)
-                ids = hit if ids is None else ids & hit
-            papers = [p for p in papers if p.id in (ids or set())]
+                    include_notes=q.include_fulltext))
+                if not candidates:
+                    return []
 
         # 2) 标签 / 分组
         for tid in q.tag_ids:
-            ids = self.organize.paper_ids_with_tag(tid)
-            papers = [p for p in papers if p.id in ids]
+            intersect(self.organize.paper_ids_with_tag(tid))
         if q.collection_id:
-            ids = self.organize.paper_ids_in_collection(q.collection_id)
-            papers = [p for p in papers if p.id in ids]
+            intersect(self.organize.paper_ids_in_collection(q.collection_id))
+        papers = self.papers.list_all(include_archived=q.include_archived, field_ids=needed,
+                                      paper_ids=sorted(candidates) if candidates is not None else None)
 
         # 3) 状态 / 星级
         if q.read_status:

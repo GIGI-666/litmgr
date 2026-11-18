@@ -122,7 +122,6 @@ class ImportService:
         existing = self._existing_index(title_f, title_en_f, arxiv_f)
 
         items: list[ImportItem] = []
-        unknown: dict[str, UnknownLabel] = {}
         for g in groups:
             parsed = None
             warnings: list[str] = []
@@ -160,8 +159,15 @@ class ImportService:
                 warnings.append(f"与已有论文重复（#{dup}），默认跳过")
             items.append(item)
 
-            if parsed:
-                for e in parsed.unknown_labels():
+        return ImportPlan(items, self._collect_unknown(items))
+
+    @staticmethod
+    def _collect_unknown(items: list[ImportItem]) -> list[UnknownLabel]:
+        """根据实际参与的卡片汇总标签，防止跳过的论文改动字段。"""
+        unknown: dict[str, UnknownLabel] = {}
+        for item in items:
+            if item.parsed:
+                for e in item.parsed.unknown_labels():
                     k = normalize_label(e.label)
                     u = unknown.setdefault(k, UnknownLabel(k, e.label, e.numbered, e.guess))
                     u.numbered = u.numbered or e.numbered
@@ -169,7 +175,7 @@ class ImportService:
                     u.count += 1
                     if len(u.samples) < 2:
                         u.samples.append(e.content[:80])
-        return ImportPlan(items, sorted(unknown.values(), key=lambda u: -u.count))
+        return sorted(unknown.values(), key=lambda u: -u.count)
 
     def _existing_index(self, title_f, title_en_f, arxiv_f) -> dict[tuple[str, str], int]:
         """已有论文的 arXiv 号/标题索引，用于重复检测。"""
@@ -189,6 +195,8 @@ class ImportService:
         """执行导入。progress(已处理篇数, 总篇数, 当前标题) 用于界面显示进度（可不传）。"""
         decisions = decisions or {}
         result = ImportResult()
+        selected = [item for item in plan.items if item.action == "import"]
+        plan = ImportPlan(plan.items, self._collect_unknown(selected))
         resolved = self._resolve_decisions(plan, decisions)
 
         title_f = self.fields.by_role(ROLE_TITLE)

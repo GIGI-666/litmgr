@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget
 
 from ..services.app_context import AppContext
@@ -48,7 +49,9 @@ class WindowManager:
 
     @staticmethod
     def _raise(win: QWidget) -> QWidget:
-        win.showNormal()
+        if win.isMinimized():
+            win.setWindowState(win.windowState() & ~Qt.WindowState.WindowMinimized)
+        win.show()
         win.raise_()
         win.activateWindow()
         return win

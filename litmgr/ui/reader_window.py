@@ -35,6 +35,12 @@ class ReaderWindow(EventSubscriberMixin, QMainWindow):
                  restore_state: dict | None = None) -> None:
         super().__init__()
         self.ctx, self.windows, self.paper_id = ctx, windows, paper_id
+        history = restore_state or ctx.reading.get_state(paper_id)
+        saved_pdfs = history.get("pdf_files")
+        self._pdf_states = dict(saved_pdfs) if isinstance(saved_pdfs, dict) else {}
+        if history.get("pdf_file") is not None and isinstance(history.get("pdf"), dict):
+            self._pdf_states.setdefault(str(history["pdf_file"]), history["pdf"])
+        self._loaded_pdf_id = None
         self.setAttribute(Qt.WA_DeleteOnClose)
         self.resize(1500, 900)
 
@@ -83,21 +89,25 @@ class ReaderWindow(EventSubscriberMixin, QMainWindow):
         self.subscribe(ctx.events, Events.PAPER_DELETED, self._on_deleted)
         self.subscribe(ctx.events, Events.PAPER_CHANGED, self._on_paper_changed)
         self._reload_lists(load=False)   # 初次只填充下拉框；真正的加载在下面统一做一次，避免重复加载
-        if file_id is not None:
-            self.show_file(file_id, load=False)
         if restore_state:
             self._select_files_from_state(restore_state)
-        self._load_pdf()
+        if file_id is not None:
+            self.show_file(file_id, load=False)
+        self._load_pdf(restore=bool(restore_state))
         self._load_md()
         self._update_title()
         if restore_state:
             self.apply_state(restore_state)
+            if file_id is not None:
+                self.show_file(file_id, load=False)
         # 记入“最近阅读”（保留这篇论文上次关闭时的状态，直到本次关闭时覆盖）
         self.ctx.reading.record_open(self.paper_id)
 
     # ---------- 阅读状态：保存与还原 ----------
     def capture_state(self) -> dict:
         """收集当前页面状态：选了哪些文件、显示哪几栏、两栏比例、PDF 页码/缩放、翻译滚动位置、窗口位置大小。"""
+        self._remember_pdf()
+        attached = {str(self.pdf_box.itemData(i)) for i in range(self.pdf_box.count())}
         return {
             "pdf_file": self.pdf_box.currentData(),
             "md_file": self.md_box.currentData(),
@@ -105,6 +115,7 @@ class ReaderWindow(EventSubscriberMixin, QMainWindow):
             "show_md": self.show_md.isChecked(),
             "sizes": self.split.sizes(),
             "pdf": self.pdf.get_state(),
+            "pdf_files": {key: value for key, value in self._pdf_states.items() if key in attached},
             "md": self.md.get_state(),
             "geometry": bytes(self.saveGeometry().toBase64()).decode("ascii"),
         }
@@ -130,8 +141,8 @@ class ReaderWindow(EventSubscriberMixin, QMainWindow):
             total = float(sum(sizes))
             ratio = [s / total for s in sizes]
             QTimer.singleShot(0, self, lambda: self._apply_split_ratio(ratio))
-        self.pdf.apply_state(st.get("pdf") or {})
-        self.md.apply_state(st.get("md") or {})
+        if st.get("md_file") == self.md_box.currentData():
+            self.md.apply_state(st.get("md") or {})
 
     def _apply_split_ratio(self, ratio: list[float]) -> None:
         total = max(self.split.width(), 2)
@@ -155,7 +166,7 @@ class ReaderWindow(EventSubscriberMixin, QMainWindow):
         # 当前正在看的文件被移除/换成别的文件时，重新加载
         if not load:
             return
-        if self.pdf_box.currentData() != cur_pdf and self.pdf_box.count():
+        if self.pdf_box.currentData() != cur_pdf:
             self._load_pdf()
         if self.md_box.currentData() != cur_md and self.md_box.count():
             self._load_md()
@@ -176,13 +187,26 @@ class ReaderWindow(EventSubscriberMixin, QMainWindow):
                     loader()
 
     # ---------- 加载 ----------
+    def _remember_pdf(self) -> None:
+        if self._loaded_pdf_id is not None:
+            self._pdf_states[str(self._loaded_pdf_id)] = self.pdf.get_state()
+
     @guarded
-    def _load_pdf(self) -> None:
+    def _load_pdf(self, *, restore: bool = True) -> None:
         fid = self.pdf_box.currentData()
+        if fid is not None and fid == self._loaded_pdf_id:
+            return
+        self._remember_pdf()
+        self._loaded_pdf_id = None
         if fid is None:
+            self.pdf.clear()
             return
         f = next(x for x in self.ctx.files.list(self.paper_id) if x.id == fid)
-        self.pdf.load(str(self.ctx.files.abs_path(f)))
+        if self.pdf.load(str(self.ctx.files.abs_path(f))):
+            self._loaded_pdf_id = fid
+            state = self._pdf_states.get(str(fid))
+            if restore and isinstance(state, dict):
+                self.pdf.apply_state(state)
 
     @guarded
     def _load_md(self) -> None:

@@ -363,14 +363,18 @@ class MainWindow(EventSubscriberMixin, QMainWindow):
     @guarded
     def switch_library(self) -> None:
         d = QFileDialog.getExistingDirectory(self, "选择（或新建）文献库文件夹", str(self.ctx.library_path))
-        if not d or Path(d) == self.ctx.library_path:
+        if not d or Path(d).resolve() == self.ctx.library_path.resolve():
             return
-        if self.config is not None:
-            self.config.remember_library(d)
-            self.config.save()
-        QMessageBox.information(self, "切换文献库", "将重新启动程序以加载新的文献库。")
-        QProcess.startDetached(sys.executable, ["-m", "litmgr"])
-        QApplication.instance().closeAllWindows()
+        self._save_state()
+        args = [] if getattr(sys, "frozen", False) else ["-m", "litmgr"]
+        started, _pid = QProcess.startDetached(sys.executable, [*args, "--library", d])
+        if not started:
+            QMessageBox.warning(self, "切换文献库", "无法启动目标文献库，当前窗口仍可继续使用。")
+            return
+        app = QApplication.instance()
+        app.setProperty("switching_library", True)
+        app.closeAllWindows()
+        app.setProperty("switching_library", False)
 
     def about(self) -> None:
         QMessageBox.about(self, "关于", f"{APP_NAME} v{__version__}\n本地单机、离线的个人文献管理系统。")
@@ -395,7 +399,8 @@ class MainWindow(EventSubscriberMixin, QMainWindow):
         self.config.save()
 
     def closeEvent(self, e) -> None:
-        self._save_state()
+        if not QApplication.instance().property("switching_library"):
+            self._save_state()
         self.recent.dispose()
         self.unsubscribe_all()
         self.closed.emit()

@@ -40,8 +40,12 @@ class Database:
         self.conn = sqlite3.connect(self.path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self._depth = 0
-        self._configure()
-        self.migrate()
+        try:
+            self._configure()
+            self.migrate()
+        except BaseException:
+            self.conn.close()
+            raise
 
     def _configure(self) -> None:
         """连接级设置。整库被替换（如恢复备份）后也要重新执行。"""
@@ -92,7 +96,7 @@ class Database:
         if self.backup_dir is None or self.path == ":memory:":
             return
         self.backup_dir.mkdir(parents=True, exist_ok=True)
-        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S.%f")
         target = self.backup_dir / f"litmgr_{stamp}_premigrate_v{from_version}.db"
         self.conn.commit()
         dst = sqlite3.connect(target)

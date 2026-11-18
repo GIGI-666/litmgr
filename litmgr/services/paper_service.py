@@ -77,12 +77,13 @@ class PaperService:
         return {p.id: p.title for p in papers}
 
     def list_all(self, include_archived: bool = False,
-                 field_ids: Iterable[int] | None = None) -> list[Paper]:
+                 field_ids: Iterable[int] | None = None, *,
+                 paper_ids: Iterable[int] | None = None) -> list[Paper]:
         """列出论文。field_ids 为 None 时读取全部字段值；否则只读取这些字段
-        （加上用于生成标题的字段）——论文很多时，只读列表真正用到的列要快得多。"""
+        （加上用于生成标题的字段）。paper_ids 可限制为检索候选论文。"""
         tf = self._title_fields()
         load_ids = None if field_ids is None else set(field_ids) | {f.id for f in tf}
-        papers = self._fill_titles(self.papers.load_papers(field_ids=load_ids), tf)
+        papers = self._fill_titles(self.papers.load_papers(paper_ids, field_ids=load_ids), tf)
         return papers if include_archived else [p for p in papers if not p.archived]
 
     def list_titles(self, include_archived: bool = False) -> list[Paper]:

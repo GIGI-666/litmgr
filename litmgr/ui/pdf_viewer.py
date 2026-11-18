@@ -31,6 +31,15 @@ class PdfViewer(QWidget):
         self.search_model.setDocument(self.doc)
         self.view.setSearchModel(self.search_model)
         self._hit = -1
+        self._restore_timer = QTimer(self)
+        self._restore_timer.setSingleShot(True)
+        self._restore_timer.setInterval(250)
+        self._restore_timer.timeout.connect(self._restore_position)
+        self._restore_target = None
+        self._search_page = 0
+        self._search_timer = QTimer(self)
+        self._search_timer.setInterval(0)
+        self._search_timer.timeout.connect(self._scan_search_page)
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
@@ -57,6 +66,7 @@ class PdfViewer(QWidget):
         self.search_edit.setMinimumWidth(180)
         self.search_edit.returnPressed.connect(self._search)
         self.search_info = QLabel("")
+        self.search_model.rowsInserted.connect(self._first_hit)
         prev_b, next_b = QPushButton("↑"), QPushButton("↓")
         prev_b.clicked.connect(lambda: self._goto_hit(-1))
         next_b.clicked.connect(lambda: self._goto_hit(+1))
@@ -80,19 +90,33 @@ class PdfViewer(QWidget):
     # ---------- 加载 ----------
     def load(self, path: str) -> bool:
         """加载 PDF，成功返回 True。"""
-        self.search_model.setSearchString("")
+        self.clear()
         err = self.doc.load(path)
         ok = err == QPdfDocument.Error.None_
-        n = self.doc.pageCount() if ok else 0
-        self.page_spin.blockSignals(True)
-        self.page_spin.setMaximum(max(n, 1))
-        self.page_spin.setValue(1)
-        self.page_spin.blockSignals(False)
-        self.page_total.setText(f"/ {n}")
-        self.search_info.setText("" if ok else "无法打开此 PDF")
+        self.page_spin.setMaximum(max(self.doc.pageCount(), 1))
+        self.page_total.setText(f"/ {self.doc.pageCount()}")
         if ok:
             self.fit_width()
+        else:
+            self.search_info.setText("无法打开此 PDF")
         return ok
+
+    def clear(self) -> None:
+        """关闭当前文件并取消针对该文件的搜索和位置恢复。"""
+        self._restore_timer.stop()
+        self._restore_target = None
+        self._search_timer.stop()
+        self._hit = -1
+        self.search_model.setSearchString("")
+        self.search_edit.clear()
+        self.search_info.clear()
+        self.view.setCurrentSearchResultIndex(-1)
+        self.doc.close()
+        self.page_spin.blockSignals(True)
+        self.page_spin.setMaximum(1)
+        self.page_spin.setValue(1)
+        self.page_spin.blockSignals(False)
+        self.page_total.setText("/ 0")
 
     # ---------- 翻页与缩放 ----------
     def _jump(self, page: int) -> None:
@@ -202,8 +226,8 @@ class PdfViewer(QWidget):
     def get_state(self) -> dict:
         """当前阅读位置：页码、页内位置、缩放方式与倍数。"""
         nav = self.view.pageNavigator()
-        loc = nav.currentLocation()
-        return {"page": nav.currentPage(), "x": loc.x(), "y": loc.y(),
+        page, loc = self._restore_target or (nav.currentPage(), nav.currentLocation())
+        return {"page": page, "x": loc.x(), "y": loc.y(),
                 "zoom_mode": self.view.zoomMode().name, "zoom": self.view.zoomFactor()}
 
     def apply_state(self, state: dict) -> None:
@@ -217,20 +241,37 @@ class PdfViewer(QWidget):
                 self.view.setZoomFactor(float(state.get("zoom", 1.0)))
         page = max(0, min(int(state.get("page", 0)), self.doc.pageCount() - 1))
         pos = QPointF(float(state.get("x", 0)), float(state.get("y", 0)))
-        # 以 self 作为上下文：窗口若在延迟期间被销毁，回调会自动取消
-        QTimer.singleShot(250, self, lambda: self._restore_position(page, pos))
+        self._restore_target = (page, pos)
+        self._restore_timer.start()
 
-    def _restore_position(self, page: int, pos: QPointF) -> None:
-        # 窗口可能在延迟期间被关闭/换了文档
-        if self.doc.pageCount() > page:
-            self.view.pageNavigator().jump(page, pos, 0)
+    def _restore_position(self) -> None:
+        target, self._restore_target = self._restore_target, None
+        if target is not None:
+            self.view.pageNavigator().jump(*target, 0)
 
     # ---------- 搜索 ----------
     def _search(self) -> None:
-        self.search_model.setSearchString(self.search_edit.text().strip())
+        query = self.search_edit.text().strip()
+        if query and query == self.search_model.searchString():
+            self._goto_hit(+1)
+            return
+        self._search_timer.stop()
         self._hit = -1
-        # 搜索是异步的，稍后结果数才会更新
-        self.search_model.rowsInserted.connect(self._first_hit, Qt.UniqueConnection)
+        self.view.setCurrentSearchResultIndex(-1)
+        self.search_info.setText("搜索中…" if query else "")
+        self.search_model.setSearchString(query)
+        self._search_page = 0
+        if query:
+            self._search_timer.start()
+
+    def _scan_search_page(self) -> None:
+        # Qt 6.8 没有搜索完成信号。分次处理页面，全部查过后再报告无结果。
+        if self._search_page < self.doc.pageCount():
+            self.search_model.updatePage(self._search_page)
+            self._search_page += 1
+        if self._search_page >= self.doc.pageCount():
+            self._search_timer.stop()
+            self._update_search_info()
 
     def _hit_count(self) -> int:
         # PySide6 里 QAbstractItemModel.rowCount 必须显式传入父索引，不能无参调用
@@ -239,14 +280,25 @@ class PdfViewer(QWidget):
     def _first_hit(self, *_a) -> None:
         if self._hit == -1 and self._hit_count() > 0:
             self._goto_hit(+1)
+        else:
+            self._update_search_info()
+
+    def _update_search_info(self) -> None:
+        n = self._hit_count()
+        if n and self._hit >= 0:
+            self.search_info.setText(f"{self._hit + 1}/{n}")
+        elif self.search_model.searchString():
+            self.search_info.setText("搜索中…" if self._search_timer.isActive() else "无结果")
+        else:
+            self.search_info.clear()
 
     def _goto_hit(self, step: int) -> None:
         n = self._hit_count()
         if n == 0:
-            self.search_info.setText("无结果" if self.search_edit.text().strip() else "")
+            self._update_search_info()
             return
         self._hit = (self._hit + step) % n
         link = self.search_model.resultAtIndex(self._hit)
         self.view.pageNavigator().jump(link.page(), link.location(), 0)
         self.view.setCurrentSearchResultIndex(self._hit)
-        self.search_info.setText(f"{self._hit + 1}/{n}")
+        self._update_search_info()

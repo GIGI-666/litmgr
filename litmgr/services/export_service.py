@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import csv
+import html
 from pathlib import Path
 from typing import Callable
 
@@ -23,6 +24,13 @@ from .field_service import FieldService
 from .paper_service import PaperService
 
 Exporter = Callable[[list[int], list[int] | None, Path], list[Path]]
+
+
+def _markdown_cell(text: str) -> str:
+    """保护 Markdown 表格分隔符，保留多行内容及文本中的 HTML 符号。"""
+    text = html.escape(text, quote=False)
+    text = text.replace("\\", "&#92;").replace("|", "&#124;")
+    return text.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br>")
 
 
 class ExportService:
@@ -80,12 +88,12 @@ class ExportService:
         target = Path(target)
         titles = [p.title for p in table.papers]
         if fmt == "md":
-            titles = [t.replace("|", "\\|") for t in titles]   # 标题里的竖线会破坏表格
+            titles = [_markdown_cell(t) for t in titles]
             lines = ["| 字段 | " + " | ".join(titles) + " |",
                      "|---|" + "---|" * len(titles)]
             for r in table.rows:
-                cells = [c.replace("\n", "<br>").replace("|", "\\|") for c in r.cells]
-                lines.append(f"| {r.field.name} | " + " | ".join(cells) + " |")
+                cells = [_markdown_cell(c) for c in r.cells]
+                lines.append(f"| {_markdown_cell(r.field.name)} | " + " | ".join(cells) + " |")
             target.write_text("\n".join(lines) + "\n", encoding="utf-8")
         else:
             with open(target, "w", newline="", encoding="utf-8-sig") as fh:
