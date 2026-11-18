@@ -22,6 +22,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget
 
 from ..services.app_context import AppContext
+from .motion import show_new_window
 
 
 class WindowManager:
@@ -39,7 +40,7 @@ class WindowManager:
         if registry is not None:
             registry[key] = win
         win.closed.connect(lambda w=win, r=registry, k=key: self._forget(w, r, k))
-        win.show()
+        show_new_window(win)
         return win
 
     def _forget(self, win, registry, key) -> None:

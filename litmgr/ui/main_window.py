@@ -35,6 +35,7 @@ from ..services.app_context import AppContext
 from .backup_dialog import BackupDialog
 from .field_manager_dialog import FieldManagerDialog
 from .filter_dialog import FilterDialog
+from .motion import motion_preference
 from .nav_panel import NavPanel
 from .paper_actions import PaperActions
 from .paper_table import PaperTable
@@ -115,6 +116,12 @@ class MainWindow(EventSubscriberMixin, QMainWindow):
         self.a_export_all = act("导出全部论文为 CSV…", pa.export_all_csv)
         self.a_reindex = act("重建全文索引", self.reindex)
         self.a_about = act("关于", self.about)
+        self.a_animations = QAction("界面动画", self)
+        self.a_animations.setCheckable(True)
+        motion = motion_preference()
+        self.a_animations.setChecked(motion.enabled)
+        motion.changed.connect(self.a_animations.setChecked)
+        self.a_animations.triggered.connect(lambda checked: self._toggle_animations(checked))
         self.a_quit = act("退出", QApplication.instance().closeAllWindows, "Ctrl+Q")
         self.a_dark = QAction("深夜模式（程序员模式）", self)
         self.a_dark.setCheckable(True)
@@ -140,6 +147,7 @@ class MainWindow(EventSubscriberMixin, QMainWindow):
         m.addAction(self.a_reindex)
         m.addAction(self.a_dark)
         m = mb.addMenu("其他(&H)")
+        m.addAction(self.a_animations)
         m.addAction(self.a_about)
 
         tb = QToolBar("工具栏")
@@ -153,6 +161,19 @@ class MainWindow(EventSubscriberMixin, QMainWindow):
 
     def _sync_dark_action(self, *_args) -> None:
         self.a_dark.setChecked(bool(QApplication.instance().property("dark_mode")))
+
+    @guarded
+    def _toggle_animations(self, enabled: bool) -> None:
+        """保存设置并同步到已打开的窗口。"""
+        config = self.config if self.config is not None else AppConfig.load()
+        config.interface_animations = enabled
+        try:
+            config.save()
+        except OSError:
+            config.interface_animations = motion_preference().enabled
+            self.a_animations.setChecked(config.interface_animations)
+            raise
+        motion_preference().set_enabled(enabled)
 
     @guarded
     def _toggle_dark(self, checked: bool) -> None:

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QInputDialog, QMenu, QMessageBox, QTreeWidget, QTr
 
 from ..core.models import READ_STATUS
 from ..services.app_context import AppContext
+from .motion import motion_preference
 from .utils import guarded
 
 ALL = ("all",)
@@ -30,6 +31,9 @@ class NavPanel(QTreeWidget):
         self._items: dict[tuple, QTreeWidgetItem] = {}
         self.setHeaderHidden(True)
         self.setMinimumWidth(190)
+        motion = motion_preference()
+        self.setAnimated(motion.enabled)
+        motion.changed.connect(self.setAnimated)
         self.itemSelectionChanged.connect(self._on_selection_changed)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self._menu)
@@ -64,7 +68,11 @@ class NavPanel(QTreeWidget):
         views = node(None, "保存的检索", ("group", "views"))
         for v in org.views():
             self._items[("view", v.id)] = node(views, v.name, ("view", v.id))
+        # 整树刷新只是恢复布局，用户点开节点时才有展开动画。
+        animated = self.isAnimated()
+        self.setAnimated(False)
         self.expandAll()
+        self.setAnimated(animated)
         self.setCurrentItem(self._items.get(self.current_nav) or self._items[ALL])
         self.blockSignals(False)
 

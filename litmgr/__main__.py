@@ -23,6 +23,7 @@ from .core.config import AppConfig, config_dir
 from .local_import import LocalImportServer
 from .services.app_context import AppContext
 from .ui.app_icon import configure_app_icon
+from .ui.motion import motion_preference
 from .ui.utils import apply_app_style
 from .ui.window_manager import WindowManager
 
@@ -95,6 +96,7 @@ def main(argv: list[str] | None = None) -> int:
     app.setApplicationName(APP_NAME)
     configure_app_icon(app)
     config = AppConfig.load()
+    motion_preference().set_enabled(config.interface_animations)
     apply_app_style(app, config.dark_mode)
 
     def excepthook(exc_type, exc, tb) -> None:

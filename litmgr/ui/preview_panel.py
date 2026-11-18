@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import html as h
 
-from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QHBoxLayout, QTextBrowser, QVBoxLayout, QWidget
+from PySide6.QtCore import QAbstractAnimation, QEasingCurve, QPropertyAnimation, Signal
+from PySide6.QtWidgets import QGraphicsOpacityEffect, QHBoxLayout, QTextBrowser, QVBoxLayout, QWidget
 
 from ..core.models import KIND_LABELS, READ_STATUS
 from ..services.app_context import AppContext
+from .motion import FADE_DURATION_MS, FADE_START_OPACITY, motion_preference
 from .utils import make_button
 
 
@@ -29,6 +30,18 @@ class PreviewPanel(QWidget):
         lay.setContentsMargins(0, 0, 0, 0)
         self.browser = QTextBrowser()
         self.browser.setOpenExternalLinks(True)
+        self._selection: tuple[int, ...] = ()
+        self._fade_effect = QGraphicsOpacityEffect(self.browser.viewport())
+        self._fade_effect.setEnabled(False)
+        self.browser.viewport().setGraphicsEffect(self._fade_effect)
+        self._fade = QPropertyAnimation(self._fade_effect, b"opacity", self)
+        self._fade.setDuration(FADE_DURATION_MS)
+        self._fade.setStartValue(FADE_START_OPACITY)
+        self._fade.setEndValue(1.0)
+        self._fade.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._fade.finished.connect(self._finish_fade)
+        self._motion = motion_preference()
+        self._motion.changed.connect(self._on_motion_changed)
         lay.addWidget(self.browser, 1)
         row = QHBoxLayout()
         self.open_btn = make_button("打开详情", self.openRequested.emit)
@@ -40,6 +53,9 @@ class PreviewPanel(QWidget):
 
     def show_selection(self, ids: list[int]) -> None:
         """按当前选中的论文 id 更新预览与按钮可用状态。"""
+        selection = tuple(ids)
+        changed = selection != self._selection
+        self._selection = selection
         self.open_btn.setEnabled(len(ids) == 1)
         self.read_btn.setEnabled(bool(ids))
         if len(ids) == 1 and self.ctx.papers.exists(ids[0]):
@@ -49,6 +65,19 @@ class PreviewPanel(QWidget):
                                  "可右键批量操作，或点工具栏“对比选中论文”。</p>")
         else:
             self.browser.setHtml("<p>选中一篇论文查看预览；双击或回车打开详情。</p>")
+        if (changed and self.isVisible() and self._motion.enabled
+                and self._fade.state() != QAbstractAnimation.State.Running):
+            self._fade_effect.setOpacity(FADE_START_OPACITY)
+            self._fade_effect.setEnabled(True)
+            self._fade.start()
+
+    def _finish_fade(self) -> None:
+        self._fade_effect.setEnabled(False)
+
+    def _on_motion_changed(self, enabled: bool) -> None:
+        if not enabled:
+            self._fade.stop()
+            self._finish_fade()
 
     def _paper_html(self, paper_id: int) -> str:
         p = self.ctx.papers.get(paper_id)

@@ -37,6 +37,7 @@ class AppConfig:
     auto_backup: bool = True                     # 启动时自动备份
     backup_keep: int = 10                        # 最多保留几份自动备份
     dark_mode: bool = False                     # 深夜模式，随配置持久保存
+    interface_animations: bool = True           # 窗口和导航的短动效
     ui_state: dict = field(default_factory=dict)  # 界面状态（窗口位置/分栏等），按窗口名分键存放
 
     @classmethod
