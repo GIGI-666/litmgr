@@ -5,7 +5,10 @@
 """
 
 import os
+from pathlib import Path
 import sqlite3
+import subprocess
+import sys
 import time
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -969,4 +972,198 @@ def test_app_icon_has_windows_sizes_and_is_inherited_by_windows(app, ctx):
     finally:
         windows.close_all()
         app.setWindowIcon(previous)
+
+
+def _bundle_command(folder):
+    project = Path(__file__).resolve().parents[1]
+    script = project / "skill/paper-translate-package/scripts/import_bundle.py"
+    return [sys.executable, str(script), "--project", str(project), str(folder)]
+
+
+@pytest.fixture
+def bundle_cli(tmp_path, monkeypatch):
+    """在单独进程运行技能的真实入口，只用临时配置和单篇测试包。"""
+    from litmgr.core.config import AppConfig
+
+    library = tmp_path / "lib"
+    monkeypatch.setenv("LITMGR_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("PYTHONUTF8", "1")
+    AppConfig(library_path=str(library)).save()
+    folder = tmp_path / "免鼠标导入"
+    folder.mkdir()
+    (folder / f"{folder.name}.pdf").write_bytes(b"%PDF-1.4 synthetic paper")
+    (folder / f"{folder.name}补充材料.pdf").write_bytes(b"%PDF-1.4 synthetic supplement")
+    (folder / f"{folder.name}翻译.md").write_text("测试译文", encoding="utf-8")
+    (folder / f"{folder.name}论文卡片.txt").write_text(
+        f"（1）中文标题：{folder.name}\n（2）本次测试独有字段：应暂存\n", encoding="utf-8")
+
+    def run():
+        return subprocess.run(_bundle_command(folder), capture_output=True, encoding="utf-8",
+                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), timeout=20)
+
+    return folder, run
+
+
+def test_closed_library_imports_bundle_without_opening_a_window(bundle_cli, tmp_path):
+    """软件关闭时，直接入库、核对附件，重复执行返回同一篇。"""
+    import json
+
+    folder, run = bundle_cli
+    library = tmp_path / "lib"
+    AppContext(library).close()
+    first = run()
+    assert first.returncode == 0, first.stderr
+    imported = json.loads(first.stdout)
+    assert imported["status"] == "imported" and imported["verified_files"] == 4
+    assert Path(imported["library"]) == library
+    assert imported["pending_labels"] == ["本次测试独有字段"]
+    duplicate = run()
+    assert duplicate.returncode == 0, duplicate.stderr
+    repeated = json.loads(duplicate.stdout)
+    assert (repeated["status"], repeated["paper_id"]) == ("duplicate", imported["paper_id"])
+    assert repeated["pending_labels"] == imported["pending_labels"]
+
+    ctx = AppContext(library)
+    try:
+        assert [p.title for p in ctx.papers.list_all()] == [folder.name]
+        files = ctx.files.list(imported["paper_id"])
+        assert sorted(ctx.files.abs_path(f).read_bytes() for f in files) == sorted(
+            p.read_bytes() for p in folder.iterdir())
+        assert [p.content for p in ctx.pending.list(imported["paper_id"])] == ["应暂存"]
+    finally:
+        ctx.close()
+
+
+def test_open_library_receives_bundle_and_refreshes_without_wizard(bundle_cli, tmp_path):
+    """后台导入避开手动向导，稍后重试能刷新列表；重复和附件冲突均保留原记录。"""
+    from multiprocessing import get_context
+
+    folder, _ = bundle_cli
+    # 新桌面进程有自己的事件循环，不会运行其他界面测试遗留的信号或定时器。
+    desktop = get_context("spawn").Process(target=_exercise_open_import, args=(folder, tmp_path / "lib"))
+    desktop.start()
+    try:
+        desktop.join(45)
+        assert desktop.exitcode == 0, f"后台导入桌面测试进程未成功退出：{desktop.exitcode}"
+    finally:
+        if desktop.is_alive():
+            desktop.kill()
+            desktop.join()
+        desktop.close()
+
+
+def _exercise_open_import(folder, library):
+    """独立的临时桌面实例；等待真实技能进程时正常处理桌面事件。"""
+    import json
+    from PySide6.QtCore import QLockFile, QProcess
+    from PySide6.QtTest import QSignalSpy
+    from litmgr.local_import import LocalImportServer
+    from litmgr.ui.import_wizard import ImportWizard
+    from litmgr.ui.window_manager import WindowManager
+
+    app = QApplication([])
+    ctx = AppContext(library)
+
+    def run():
+        cmd = _bundle_command(folder)
+        proc = QProcess()
+        finished = QSignalSpy(proc.finished)
+        proc.start(cmd[0], cmd[1:])
+        assert proc.waitForStarted(5000)
+        try:
+            assert proc.state() == QProcess.NotRunning or finished.wait(20000)
+            assert proc.exitStatus() == QProcess.NormalExit
+            return subprocess.CompletedProcess(cmd, proc.exitCode(),
+                                               bytes(proc.readAllStandardOutput()).decode("utf-8"),
+                                               bytes(proc.readAllStandardError()).decode("utf-8"))
+        finally:
+            if proc.state() != QProcess.NotRunning:
+                proc.kill()
+                proc.waitForFinished(5000)
+
+    other = ctx.papers.create({_title(ctx).id: "另有待归类内容的旧论文"})
+    ctx.pending.add(other, "旧字段", "旧内容")
+    lock = QLockFile(str(ctx.library_path / ".litmgr.lock"))
+    assert lock.tryLock(0)
+    windows = WindowManager(ctx)
+    server = LocalImportServer(ctx, is_busy=lambda: windows.import_wizard_open)
+    try:
+        main = windows.open_main()
+        assert main.table.paper_count() == 1
+
+        def try_during_manual_preview(_dialog):
+            busy = run()
+            assert busy.returncode and "手动导入" in busy.stderr
+            assert [p.id for p in ctx.papers.list_all()] == [other]
+            return 0
+
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(ImportWizard, "exec", try_during_manual_preview)
+            windows.open_import_wizard()
+        result = run()
+        assert result.returncode == 0, result.stderr
+        reply = json.loads(result.stdout)
+        assert reply["status"] == "imported" and reply["verified_files"] == 4
+        assert Path(reply["library"]) == ctx.library_path
+        assert reply["pending_labels"] == ["本次测试独有字段"]
+        # 给主窗口合并更新的短定时器足够时间，不手动调用刷新。
+        deadline = time.monotonic() + 2
+        while main.table.paper_count() != 2 and time.monotonic() < deadline:
+            QTest.qWait(10)
+        assert main.table.paper_count() == 2
+        assert ctx.papers.get(reply["paper_id"]).title == folder.name
+
+        result = run()
+        assert result.returncode == 0, result.stderr
+        duplicate = json.loads(result.stdout)
+        assert (duplicate["status"], duplicate["paper_id"]) == ("duplicate", reply["paper_id"])
+        assert duplicate["pending_labels"] == reply["pending_labels"]
+        (folder / f"{folder.name}翻译.md").write_text("另一版译文", encoding="utf-8")
+        conflict = run()
+        assert conflict.returncode and conflict.stderr
+        assert len(ctx.papers.list_all()) == 2
+        assert "测试译文".encode() in [ctx.files.abs_path(f).read_bytes()
+                                    for f in ctx.files.list(reply["paper_id"])]
+        assert app.activeModalWidget() is None
+    finally:
+        server.close()
+        windows.close_all()
+        ctx.close()
+        lock.unlock()
+
+
+def test_locked_library_without_import_endpoint_stays_untouched(bundle_cli, ctx):
+    """旧版程序持锁却没有后台入口时，应直接返回失败并留下完整成品。"""
+    from PySide6.QtCore import QLockFile
+
+    folder, run = bundle_cli
+    lock = QLockFile(str(ctx.library_path / ".litmgr.lock"))
+    assert lock.tryLock(0)
+    try:
+        failed = run()
+        assert failed.returncode and failed.stderr
+        assert not ctx.papers.list_all() and len(list(folder.iterdir())) == 4
+    finally:
+        lock.unlock()
+
+
+def test_bundle_verification_failure_rolls_back_record_and_copies(bundle_cli, ctx, monkeypatch):
+    """复制完成后发现附件字节不符，也要回滚整篇、待归类内容和已经复制的文件。"""
+    from litmgr.services.bundle_import import import_bundle
+
+    folder, _ = bundle_cli
+    add_file = ctx.fs.add_file
+
+    def damaged_copy(paper_id, kind, src):
+        rel, digest = add_file(paper_id, kind, src)
+        if kind == "translation":
+            ctx.fs.abs_path(rel).write_bytes(b"incomplete")
+        return rel, digest
+
+    monkeypatch.setattr(ctx.fs, "add_file", damaged_copy)
+    with pytest.raises(RuntimeError, match="附件"):
+        import_bundle(ctx, folder)
+    assert not ctx.papers.list_all() and not ctx.pending.list()
+    assert not list(ctx.fs.papers_dir.iterdir())
+    assert (folder / f"{folder.name}翻译.md").read_text(encoding="utf-8") == "测试译文"
 

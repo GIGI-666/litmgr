@@ -2,7 +2,7 @@
 
 【作用】启动应用：创建 QApplication，确定文献库位置（命令行 > 上次使用 > 首次启动时让你选择），
     装配 AppContext，自动备份，打开主窗口，进入事件循环；退出时关闭数据库。
-【依赖】core.config；services.app_context；ui.window_manager / ui.utils。
+【依赖】core.config；services.app_context；local_import（接收本机论文包）；ui.window_manager / ui.utils。
 【扩展点】插件加载：在 main() 里 ctx 创建之后、主窗口打开之前调用插件的 register(ctx, windows)。
 """
 
@@ -20,6 +20,7 @@ from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from . import APP_NAME
 from .core.config import AppConfig, config_dir
+from .local_import import LocalImportServer
 from .services.app_context import AppContext
 from .ui.app_icon import configure_app_icon
 from .ui.utils import apply_app_style
@@ -116,6 +117,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     ctx = AppContext(library)
+    windows = WindowManager(ctx)
+    # 接收端与持锁程序同寿命，用本进程的服务导入后即可通知已开的窗口刷新。
+    import_server = None
+    try:
+        import_server = LocalImportServer(ctx, is_busy=lambda: windows.import_wizard_open)
+    except RuntimeError:
+        logging.exception("本机后台导入入口未能启动")
     config.remember_library(str(library))
     config.save()
     try:
@@ -124,14 +132,16 @@ def main(argv: list[str] | None = None) -> int:
     except Exception:  # noqa: BLE001 - 备份失败不应阻止使用
         logging.exception("自动备份失败")
 
-    windows = WindowManager(ctx)
     windows.open_main(config)
     QTimer.singleShot(1200, _prewarm_reader)   # 主窗口出来后，空闲时提前准备好阅读器所需的组件
-    code = app.exec()
-    _release_prewarm()
-    ctx.close()
-    lock.unlock()
-    return code
+    try:
+        return app.exec()
+    finally:
+        if import_server is not None:
+            import_server.close()
+        _release_prewarm()
+        ctx.close()
+        lock.unlock()
 
 
 if __name__ == "__main__":

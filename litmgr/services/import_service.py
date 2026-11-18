@@ -13,7 +13,7 @@
     - 任何一篇出错不影响其他篇，错误汇总在 ImportResult.errors。
 【依赖】importers.*、services.field_service / paper_service / file_service / pending_service /
     organize_service（只通过服务，不直接碰仓库）。
-【被谁调用】ui.import_wizard。
+【被谁调用】ui.import_wizard、services.bundle_import。
 【扩展点】新增导入来源（如 BibTeX）：写一个新 importer 产出同样的 ImportPlan 即可复用 execute。
 """
 
@@ -191,8 +191,9 @@ class ImportService:
     # ---------- 第二步：执行导入 ----------
     def execute(self, plan: ImportPlan, decisions: dict[str, LabelDecision] | None = None,
                 collection_id: int | None = None,
-                progress: Callable[[int, int, str], None] | None = None) -> ImportResult:
-        """执行导入。progress(已处理篇数, 总篇数, 当前标题) 用于界面显示进度（可不传）。"""
+                progress: Callable[[int, int, str], None] | None = None, *,
+                verify_created: Callable[[int], None] | None = None) -> ImportResult:
+        """执行导入并按篇报告进度。可选的单篇校验在提交前运行，失败时一并撤回记录和文件。"""
         decisions = decisions or {}
         result = ImportResult()
         selected = [item for item in plan.items if item.action == "import"]
@@ -216,6 +217,8 @@ class ImportService:
                                            created)
                     if collection_id:
                         self.organize.add_to_collection([pid], collection_id, publish=False)
+                    if verify_created is not None:
+                        verify_created(pid)
                 result.created.append(pid)
             except Exception as e:  # noqa: BLE001 - 单篇失败不能拖垮整批
                 for pid in created:

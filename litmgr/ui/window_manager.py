@@ -31,6 +31,7 @@ class WindowManager:
         self._detail: dict[int, QWidget] = {}
         self._reader: dict[int, QWidget] = {}
         self.main_window: QWidget | None = None
+        self.import_wizard_open = False
 
     # ---------- 内部 ----------
     def _track(self, win: QWidget, registry: dict | None = None, key: Any = None) -> QWidget:
@@ -92,8 +93,13 @@ class WindowManager:
         return self._track(CompareWindow(self.ctx, self, paper_ids))
 
     def open_import_wizard(self, parent: QWidget | None = None) -> None:
+        """手动导入期间暂缓后台请求，保持向导预览中的查重结果有效。"""
         from .import_wizard import ImportWizard
-        ImportWizard(parent or self.main_window, self.ctx).exec()
+        self.import_wizard_open = True
+        try:
+            ImportWizard(parent or self.main_window, self.ctx).exec()
+        finally:
+            self.import_wizard_open = False
 
     def close_all(self) -> None:
         for w in list(self._windows):

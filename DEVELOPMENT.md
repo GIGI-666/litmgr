@@ -90,7 +90,7 @@ shared_library/  交接的完整文献库快照
 - `references/litmgr-format.md`：导入兼容约定。
 - `assets/card-template.txt`：初始模板快照；实际使用优先读当次模板。
 - `scripts/paper_bundle.py`：标准库工具，负责快照、分段登记、卡片和最终文件包，不调用模型 API。
-- `scripts/import_bundle.py`：使用 litmgr 环境读取当前库配置，取得同库锁后调用 ImportService，返回论文 ID 并核验关联文件。当前库已打开时技能使用桌面导入向导。
+- `scripts/import_bundle.py`：读取当前个人库配置，向正在使用该库的桌面进程发送本机导入请求，库空闲时自行取得锁。两者共用 `litmgr/services/bundle_import.py` 处理查重、暂存未知字段和核验附件。技能从返回值读取论文编号及本篇待归类字段。
 - 新任务名称由 `--title-zh` 自动生成，使用从 PDF 正文题名翻译出的完整中文标题；输入下载名不参与命名，也不额外加 arXiv 编号或年月。保留翻译 MD 和卡片 TXT 格式；`--stem` 可省略，提供不同前缀会被拒绝。
 - `agents/openai.yaml`：显示名称与默认请求。
 
@@ -124,7 +124,7 @@ git push -u origin codex/your-feature
 - 文件名相似度配对阈值为 0.88，可能把标题相近论文合并；预览会提醒核对，尚无手动拆分/重配。
 - 导入 `build_plan` 仍在界面线程运行，大量文件时可能暂时等待。
 - 中文标题排序按字符码点，未按拼音排序。
-- 单实例锁尚无自动化覆盖。FieldService 未加查询缓存，修改时需考虑备份恢复后的失效。
+- FieldService 未加查询缓存，修改时需考虑备份恢复后的失效。
 
 这些是后续开发方向，不应在仅修文档或性能优化时顺带改变现有行为。
 
