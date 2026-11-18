@@ -1,27 +1,27 @@
 {
-  "captured_at": "2026-11-14T08:44:31.741927+08:00",
+  "captured_at": "2026-11-18T17:14:41.873888+08:00",
   "schema_version": 4,
   "counts": {
-    "paper": 8,
+    "paper": 11,
     "field_def": 28,
     "field_group": 6,
-    "field_value": 151,
-    "paper_file": 25,
+    "field_value": 235,
+    "paper_file": 35,
     "note": 0,
     "tag": 0,
     "collection": 2,
     "saved_view": 0,
     "change_log": 5,
     "pending_content": 0,
-    "reading_history": 4
+    "reading_history": 6
   },
   "file_kinds": {
-    "card": 6,
-    "pdf": 11,
-    "translation": 8
+    "card": 9,
+    "pdf": 15,
+    "translation": 11
   },
   "backup_count": 7,
-  "total_bytes": 108637677,
+  "total_bytes": 156132641,
   "files": {
     "backups/litmgr_20261030_140343.db": {
       "bytes": 630784,
@@ -56,8 +56,8 @@
       "sha256": "6de8a98fd4b36bee5bcbf162f9f82bff7898fcdd5936002fed2bad8de8908dea"
     },
     "db/litmgr.db": {
-      "bytes": 4304896,
-      "sha256": "b62997438dd49252ea7c925d9675a8a585cfae140fe3cfa12720618fc29c1b77"
+      "bytes": 5230592,
+      "sha256": "5e1202ec3df351eff1f1aa73e476002a4f5483d41def6348c259232b5f69267d"
     },
     "papers/1/card/基于Transformer的端到端目标检测2005论文卡片_0136a92e.txt": {
       "bytes": 3220,
@@ -74,6 +74,46 @@
     "papers/1/translation/基于Transformer的端到端目标检测2005翻译_96c65fd2.md": {
       "bytes": 79165,
       "sha256": "96c65fd2d0bcc02bc06f1e5dbab7d7fb4ed060c31fe9ec35c547512acb1b8783"
+    },
+    "papers/10/card/DTRNet：面向含伪字检测的手写中文文本识别的文本与部件双路解码论文卡片_7f35a951.txt": {
+      "bytes": 6318,
+      "sha256": "7f35a951edd8424dc204d79d3a5c8405d155c852dc39a4011854301c943bcfd7"
+    },
+    "papers/10/pdf/DTRNet：面向含伪字检测的手写中文文本识别的文本与部件双路解码_8c2af9b7.pdf": {
+      "bytes": 2523398,
+      "sha256": "8c2af9b727af6aa48ed3d3047df7fa97e411d255069329e97ef5b65d8576cb33"
+    },
+    "papers/10/translation/DTRNet：面向含伪字检测的手写中文文本识别的文本与部件双路解码翻译_3f3e4745.md": {
+      "bytes": 68046,
+      "sha256": "3f3e47457b6b41bc97fb206654538c2c1cd213805d9c46dc26e06d90a48a8b7b"
+    },
+    "papers/11/card/DocLayout-YOLO：通过多样化合成数据和从全局到局部的自适应感知增强文_0cd3af6b.txt": {
+      "bytes": 6288,
+      "sha256": "0cd3af6b7ce7ef52e893e0b823e3bfa229c4961724baecd9892ec64225b372ca"
+    },
+    "papers/11/pdf/DocLayout-YOLO：通过多样化合成数据和从全局到局部的自适应感知增强文_53e87c83.pdf": {
+      "bytes": 29731923,
+      "sha256": "53e87c83e7a8ba92932902c8c98cbc36efecca35b2845226480acaae301152f7"
+    },
+    "papers/11/translation/DocLayout-YOLO：通过多样化合成数据和从全局到局部的自适应感知增强文_79b86693.md": {
+      "bytes": 44290,
+      "sha256": "79b86693335c5fc30f882a96841e569bc68de78c8ff9c53af24e308bd6b7bfe1"
+    },
+    "papers/12/card/OmniDocBench：通过全面标注评测多样化 PDF 文档解析论文卡片_2b62172f.txt": {
+      "bytes": 13010,
+      "sha256": "2b62172f24bff32b51f32a46ff81bc5aeed76b03153f355580c862e97edc664f"
+    },
+    "papers/12/pdf/OmniDocBench：通过全面标注评测多样化 PDF 文档解析_e61ec797.pdf": {
+      "bytes": 1210694,
+      "sha256": "e61ec797d9b2544a34daad24c7f9eb58649f5d5d8d2f535ad159a5c5dd5b890d"
+    },
+    "papers/12/pdf/OmniDocBench：通过全面标注评测多样化 PDF 文档解析补充材料_1bc6697c.pdf": {
+      "bytes": 12893060,
+      "sha256": "1bc6697c362c5ab5ced7776972d5f2bf6ca4da0bc641f46c5e809335d4df8b79"
+    },
+    "papers/12/translation/OmniDocBench：通过全面标注评测多样化 PDF 文档解析翻译_2a047110.md": {
+      "bytes": 72241,
+      "sha256": "2a047110e592bacb41bd45b5233c4f826fb2f1f2b9e8d3e6ba5faff986c22ae6"
     },
     "papers/2/pdf/AD-GBC：一种用于基于 UNet 的医学图像分割的各向异性粒球跳跃连接优化模_21973c9c.pdf": {
       "bytes": 1092996,
