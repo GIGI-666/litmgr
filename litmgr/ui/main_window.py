@@ -24,8 +24,8 @@ from pathlib import Path
 from PySide6.QtCore import QByteArray, QProcess, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QHBoxLayout, QInputDialog,
-                               QLabel, QLineEdit, QMainWindow, QMessageBox, QSplitter,
-                               QToolBar, QVBoxLayout, QWidget)
+                               QDialog, QDialogButtonBox, QLabel, QLineEdit, QMainWindow, QMessageBox,
+                               QSplitter, QTextBrowser, QToolBar, QVBoxLayout, QWidget)
 
 from .. import APP_NAME, __version__
 from ..core.config import AppConfig
@@ -139,7 +139,7 @@ class MainWindow(EventSubscriberMixin, QMainWindow):
         m.addAction(self.a_fields)
         m.addAction(self.a_reindex)
         m.addAction(self.a_dark)
-        m = mb.addMenu("帮助(&H)")
+        m = mb.addMenu("其他(&H)")
         m.addAction(self.a_about)
 
         tb = QToolBar("工具栏")
@@ -377,7 +377,31 @@ class MainWindow(EventSubscriberMixin, QMainWindow):
         app.setProperty("switching_library", False)
 
     def about(self) -> None:
-        QMessageBox.about(self, "关于", f"{APP_NAME} v{__version__}\n本地单机、离线的个人文献管理系统。")
+        """显示当前版本和应用自带的更新记录。"""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("关于")
+        dialog.resize(820, 620)
+        layout = QVBoxLayout(dialog)
+        version = QLabel(f"{APP_NAME} · litmgr {__version__}")
+        version.setObjectName("paperTitle")
+        version.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        layout.addWidget(version)
+
+        history = QTextBrowser()
+        history.setOpenExternalLinks(True)
+        changelog = Path(__file__).resolve().parents[1] / "assets" / "CHANGELOG.md"
+        try:
+            history.setMarkdown(changelog.read_text(encoding="utf-8"))
+        except OSError:
+            history.setPlainText("无法读取更新记录。请检查应用资源目录中的 CHANGELOG.md。")
+        layout.addWidget(history, 1)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.button(QDialogButtonBox.StandardButton.Close).setText("关闭")
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        dialog.exec()
+        dialog.deleteLater()
 
     # ================= 窗口状态（保存在 AppConfig.ui_state，不再用系统注册表） =================
     def _restore_state(self) -> None:

@@ -11,5 +11,5 @@
 【被谁调用】`python -m litmgr` 启动（见 __main__.py）。
 """
 
-__version__ = "1.1.5"
+__version__ = "1.1.6"
 APP_NAME = "文献管理系统"
